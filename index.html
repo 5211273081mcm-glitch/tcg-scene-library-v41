@@ -1,0 +1,3306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>听潮阁舆情整合系统 · 底层算法演示 · V4.1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet" />
+<style>
+/* ============================================================
+   听潮阁 / 舆情作战甲板
+   电影级极简 · 全黑画布 · 光谱白文字 · 零容器
+   ============================================================ */
+
+:root{
+  --bg: #000000;
+  --bg-1: #050507;
+  --ink: #f0f0fa;              /* 光谱白 */
+  --ink-2: rgba(240,240,250,0.62);
+  --ink-3: rgba(240,240,250,0.38);
+  --ink-4: rgba(240,240,250,0.18);
+  --ink-5: rgba(240,240,250,0.08);
+  --line: rgba(240,240,250,0.18);
+  --line-faint: rgba(240,240,250,0.08);
+  --ghost-bg: rgba(240,240,250,0.06);
+  --ghost-border: rgba(240,240,250,0.35);
+  --signal: #5ce1e6;             /* 信号青 */
+  --ember: #ff5530;              /* 火焰红 · 红线 */
+  --ember-2: #ff7a3c;
+  --warn: #ffb84d;
+  --grid-base: rgba(240,240,250,0.04);
+}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{background:var(--bg);color:var(--ink);}
+html{scroll-behavior:smooth;}
+body{
+  font-family:'Barlow Condensed','HarmonyOS Sans','PingFang SC','Noto Sans SC','Microsoft YaHei',Arial,sans-serif;
+  font-weight:400;
+  letter-spacing:0.04em;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+  overflow-x:hidden;
+}
+
+/* ============ 排版辅助 ============ */
+.mono{font-family:'JetBrains Mono','SF Mono',Menlo,monospace;letter-spacing:0;}
+.cn{font-family:'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif;letter-spacing:0.08em;}
+.up{text-transform:uppercase;letter-spacing:0.14em;}
+.tracked{letter-spacing:0.22em;}
+.dim{color:var(--ink-3);}
+.dim-2{color:var(--ink-2);}
+.signal{color:var(--signal);}
+.ember{color:var(--ember);}
+.warn{color:var(--warn);}
+
+/* ============ 星粒子背景 ============ */
+canvas.star-bg{
+  position:fixed;
+  inset:0;
+  z-index:0;
+  pointer-events:none;
+  opacity:0.65;
+}
+
+/* ============ HUD 边框 ============ */
+.hud-frame{
+  position:fixed;
+  inset:0;
+  z-index:50;
+  pointer-events:none;
+}
+.hud-frame::before,
+.hud-frame::after{
+  content:"";
+  position:absolute;
+  width:18px;height:18px;
+  border:1px solid var(--ink-3);
+}
+.hud-frame::before{top:18px;left:18px;border-right:none;border-bottom:none;}
+.hud-frame::after{bottom:18px;right:18px;border-left:none;border-top:none;}
+.hud-corner-tr,.hud-corner-bl{
+  position:absolute;width:18px;height:18px;border:1px solid var(--ink-3);
+}
+.hud-corner-tr{top:18px;right:18px;border-left:none;border-bottom:none;}
+.hud-corner-bl{bottom:18px;left:18px;border-right:none;border-top:none;}
+.hud-frame .hud-vline{
+  position:absolute;width:1px;background:var(--line-faint);
+  top:0;bottom:0;
+}
+.hud-frame .vl-1{left:8.33%;}
+.hud-frame .vl-2{left:91.67%;}
+
+/* ============ 顶部状态栏 ============ */
+nav.topbar{
+  position:fixed;
+  top:0;left:0;right:0;
+  z-index:60;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:18px 36px;
+  pointer-events:none;
+  font-size:12px;
+  letter-spacing:0.18em;
+  color:var(--ink);
+  background:linear-gradient(180deg,rgba(0,0,0,0.65) 0%,rgba(0,0,0,0) 100%);
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+}
+nav.topbar .brand{display:flex;gap:14px;align-items:center;font-family:'Noto Sans SC',sans-serif;}
+nav.topbar .brand .mark{
+  width:26px;height:26px;
+  border:1px solid var(--ink);
+  display:grid;place-items:center;
+  font-weight:700;font-size:13px;
+  font-family:'Barlow Condensed',sans-serif;letter-spacing:0;
+}
+nav.topbar .mission{display:flex;gap:24px;align-items:center;font-family:'Noto Sans SC',sans-serif;}
+nav.topbar .mission span{font-weight:400;}
+.pulse-dot{
+  display:inline-block;width:6px;height:6px;border-radius:50%;
+  background:var(--signal);box-shadow:0 0 8px var(--signal);
+  margin-right:8px;animation:pulse 2.2s ease-in-out infinite;
+}
+@keyframes pulse{
+  0%,100%{opacity:1;transform:scale(1);}
+  50%{opacity:0.4;transform:scale(0.7);}
+}
+
+/* ============ 侧边导航 ============ */
+.side-rail{
+  position:fixed;
+  left:24px;top:50%;transform:translateY(-50%);
+  z-index:65;
+  display:flex;flex-direction:column;gap:6px;
+  font-family:'Noto Sans SC',sans-serif;
+  font-size:11px;
+  color:var(--ink-3);
+  pointer-events:auto;
+  padding:14px 12px 14px 14px;
+  background:rgba(0,0,0,0.55);
+  border:1px solid var(--line-faint);
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
+  border-radius:2px;
+}
+.side-rail a{
+  color:var(--ink-3);text-decoration:none;
+  letter-spacing:0.16em;display:flex;align-items:center;gap:10px;
+  padding:5px 0;
+  transition:color .25s;
+  white-space:nowrap;
+}
+.side-rail a::before{
+  content:"";width:14px;height:1px;background:var(--ink-4);
+  transition:width .3s,background .3s;
+  flex-shrink:0;
+}
+.side-rail a:hover,
+.side-rail a.active{color:var(--ink);}
+.side-rail a.active::before,
+.side-rail a:hover::before{width:28px;background:var(--ink);}
+.side-rail .rail-num{
+  font-family:'JetBrains Mono',monospace;
+  font-size:10px;letter-spacing:0;color:var(--ink-3);
+  width:18px;
+}
+.side-rail a.active .rail-num{color:var(--ink);}
+
+/* ============ Section 基础 ============ */
+main{position:relative;z-index:2;}
+section.scene{
+  position:relative;
+  min-height:100vh;
+  padding:120px 8vw 96px 14vw;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  overflow:hidden;
+}
+.scene + .scene{border-top:1px solid var(--line-faint);}
+
+/* Section 标签 */
+.scene-tag{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;
+  letter-spacing:0.24em;
+  color:var(--ink-3);
+  text-transform:uppercase;
+  margin-bottom:36px;
+}
+.scene-tag .bracket{color:var(--ink-4);}
+.scene-tag .idx{color:var(--ink);font-weight:500;}
+.scene-tag .tag-cn{
+  font-family:'Noto Sans SC',sans-serif;font-size:12px;letter-spacing:0.22em;
+  color:var(--ink-3);text-transform:none;margin-left:4px;
+}
+
+/* Section 标题 */
+.scene-title{
+  font-family:'Noto Sans SC','Barlow Condensed',sans-serif;
+  font-weight:500;
+  font-size:clamp(36px,5.0vw,68px);
+  line-height:1.18;
+  letter-spacing:0.08em;
+  margin-bottom:24px;
+  color:var(--ink);
+}
+.scene-title .sub{
+  display:block;
+  font-family:'Noto Sans SC',sans-serif;
+  font-weight:300;
+  font-size:0.45em;
+  letter-spacing:0.32em;
+  color:var(--ink-2);
+  margin-top:18px;
+}
+.scene-lead{
+  max-width:820px;
+  font-family:'Noto Sans SC',sans-serif;
+  font-size:16px;
+  line-height:1.95;
+  font-weight:300;
+  color:var(--ink-2);
+  letter-spacing:0.1em;
+  margin-bottom:64px;
+}
+
+/* Ghost 按钮 */
+.ghost{
+  display:inline-flex;align-items:center;gap:12px;
+  background:var(--ghost-bg);
+  color:var(--ink);
+  border:1px solid var(--ghost-border);
+  border-radius:32px;
+  padding:14px 28px;
+  font-family:'Noto Sans SC',sans-serif;
+  font-weight:400;
+  font-size:13px;
+  letter-spacing:0.22em;
+  text-decoration:none;
+  cursor:pointer;
+  transition:background .3s,color .3s,border-color .3s,transform .3s;
+}
+.ghost:hover{
+  background:rgba(240,240,250,0.14);
+  border-color:var(--ink);
+  transform:translateY(-1px);
+}
+.ghost .arr{
+  display:inline-block;transform:translateY(-1px);
+  font-family:'JetBrains Mono',monospace;font-size:14px;letter-spacing:0;
+}
+
+/* 入场动画 */
+.reveal{opacity:0;transform:translateY(34px);transition:opacity 1s cubic-bezier(.22,.61,.36,1),transform 1s cubic-bezier(.22,.61,.36,1);}
+.reveal.in{opacity:1;transform:translateY(0);}
+.reveal.d-1{transition-delay:.08s;}
+.reveal.d-2{transition-delay:.16s;}
+.reveal.d-3{transition-delay:.24s;}
+.reveal.d-4{transition-delay:.32s;}
+.reveal.d-5{transition-delay:.40s;}
+.reveal.d-6{transition-delay:.48s;}
+
+/* ============ 场景 1 :: 任务总览 ============ */
+.hero{
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 60%, rgba(92,225,230,0.05) 0%, transparent 65%),
+    radial-gradient(ellipse 60% 40% at 50% 105%, rgba(255,85,48,0.06) 0%, transparent 60%);
+  align-items:center;
+  text-align:center;
+  padding:120px 8vw 96px 14vw;
+}
+.hero .pretitle{
+  font-family:'Noto Sans SC',sans-serif;
+  font-size:12px;letter-spacing:0.4em;color:var(--ink-3);
+  margin-bottom:28px;
+  display:flex;gap:18px;justify-content:center;align-items:center;
+}
+.hero .pretitle .dash{width:48px;height:1px;background:var(--ink-3);}
+.hero h1.formula{
+  font-family:'Barlow Condensed',sans-serif;
+  font-weight:300;
+  font-size:clamp(34px,5.0vw,80px);
+  line-height:1;
+  letter-spacing:0.02em;
+  margin:0 0 36px;
+  white-space:nowrap;
+  max-width:100%;
+}
+.hero h1.formula .var{color:var(--ink);font-weight:500;}
+.hero h1.formula .op{color:var(--ink-3);margin:0 0.16em;font-weight:300;}
+.hero h1.formula .num{color:var(--ink-2);font-weight:300;}
+.hero .formula-cn{
+  font-family:'Noto Sans SC',sans-serif;
+  font-size:18px;letter-spacing:0.42em;
+  color:var(--ink-2);font-weight:300;
+  margin-bottom:72px;
+}
+.hero .cta-cluster{display:flex;gap:18px;justify-content:center;align-items:center;margin-bottom:88px;flex-wrap:wrap;}
+.hero .vital-row{
+  display:grid;grid-template-columns:repeat(5,1fr);
+  gap:18px;
+  width:min(960px,90vw);
+  border-top:1px solid var(--line-faint);
+  border-bottom:1px solid var(--line-faint);
+  padding:22px 0;
+  margin-top:auto;
+}
+.hero .vital{
+  text-align:left;
+  padding:0 18px;
+  border-right:1px solid var(--line-faint);
+}
+.hero .vital:last-child{border-right:none;}
+.hero .vital .lbl{
+  font-family:'Noto Sans SC',sans-serif;
+  font-size:11px;letter-spacing:0.26em;color:var(--ink-3);
+  margin-bottom:6px;
+}
+.hero .vital .val{
+  font-family:'Barlow Condensed',sans-serif;
+  font-weight:500;
+  font-size:28px;letter-spacing:0.04em;
+  color:var(--ink);line-height:1;
+}
+.hero .vital .val .unit{font-size:13px;color:var(--ink-3);margin-left:6px;font-weight:300;}
+.hero .scroll-hint{
+  position:absolute;left:50%;bottom:24px;transform:translateX(-50%);
+  font-family:'Noto Sans SC',sans-serif;
+  font-size:11px;letter-spacing:0.32em;color:var(--ink-3);
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+}
+.scroll-hint .line{
+  width:1px;height:32px;background:linear-gradient(to bottom,var(--ink-3),transparent);
+  animation:slide 2.2s ease-in-out infinite;
+}
+@keyframes slide{
+  0%{transform:translateY(-12px);opacity:0;}
+  40%{opacity:1;}
+  100%{transform:translateY(12px);opacity:0;}
+}
+
+/* 轨道环 */
+.orbit-ring{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:min(80vw,1100px);aspect-ratio:1;
+  border:1px solid var(--line-faint);border-radius:50%;
+  pointer-events:none;
+  animation:rot 80s linear infinite;
+}
+.orbit-ring::before,.orbit-ring::after{
+  content:"";position:absolute;width:4px;height:4px;border-radius:50%;
+  background:var(--signal);box-shadow:0 0 12px var(--signal);
+}
+.orbit-ring::before{top:-2px;left:50%;transform:translateX(-50%);}
+.orbit-ring::after{bottom:-2px;left:35%;background:var(--ember);box-shadow:0 0 12px var(--ember);}
+.orbit-ring.r2{width:min(60vw,820px);opacity:0.6;animation-duration:140s;animation-direction:reverse;}
+.orbit-ring.r3{width:min(40vw,560px);opacity:0.4;animation-duration:200s;}
+@keyframes rot{from{transform:translate(-50%,-50%) rotate(0);}to{transform:translate(-50%,-50%) rotate(360deg);}}
+
+/* ============ 场景 2 :: 公式拆解 ============ */
+.equation-grid{
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  gap:0;
+  border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line);
+  margin-top:24px;
+}
+.eq-cell{
+  position:relative;
+  padding:44px 26px 38px;
+  border-right:1px solid var(--line-faint);
+  display:flex;flex-direction:column;
+  min-height:340px;
+}
+.eq-cell:last-child{border-right:none;}
+.eq-cell .var-letter{
+  font-family:'Barlow Condensed',sans-serif;font-weight:300;
+  font-size:120px;line-height:0.9;
+  color:var(--ink);
+  margin-bottom:14px;
+}
+.eq-cell .var-name-cn{
+  font-family:'Noto Sans SC',sans-serif;font-weight:400;
+  font-size:18px;letter-spacing:0.16em;color:var(--ink);margin-bottom:12px;
+}
+.eq-cell .var-range{
+  font-family:'JetBrains Mono',monospace;font-size:13px;
+  color:var(--ink-2);letter-spacing:0.05em;margin-bottom:24px;
+}
+.eq-cell .var-desc{
+  font-family:'Noto Sans SC',sans-serif;font-weight:300;
+  font-size:13px;line-height:1.85;color:var(--ink-2);letter-spacing:0.08em;
+  margin-top:auto;
+}
+.eq-cell .bar-track{
+  height:2px;background:var(--ink-5);
+  margin-bottom:18px;position:relative;
+}
+.eq-cell .bar-track::after{
+  content:"";position:absolute;left:0;top:0;height:100%;
+  background:var(--ink);width:var(--w,40%);
+  transition:width 1.4s cubic-bezier(.22,.61,.36,1);
+}
+.eq-cell.in .bar-track::after{width:var(--w,40%);}
+.eq-cell:not(.in) .bar-track::after{width:0;}
+
+/* ============ 场景 3 :: 信源采集 ============ */
+.intake-stage{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:80px;
+  align-items:start;
+}
+.intake-sources{display:flex;flex-direction:column;gap:0;}
+.src-row{
+  display:grid;
+  grid-template-columns:32px 1fr auto auto;
+  gap:18px;
+  align-items:center;
+  padding:22px 0;
+  border-bottom:1px solid var(--line-faint);
+}
+.src-row:first-child{border-top:1px solid var(--line);}
+.src-row .src-code{
+  font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-3);
+  letter-spacing:0.18em;
+}
+.src-row .src-name{
+  font-family:'Noto Sans SC',sans-serif;font-weight:400;font-size:16px;
+  letter-spacing:0.08em;color:var(--ink);
+}
+.src-row .src-rate{
+  font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--ink);
+  letter-spacing:0.04em;
+}
+.src-row .src-bench{
+  font-family:'Noto Sans SC',sans-serif;font-size:12px;color:var(--ink-3);
+  letter-spacing:0.12em;text-align:right;min-width:140px;
+}
+
+.intake-readout{
+  position:relative;
+  padding:32px;
+  border:1px solid var(--line);
+  min-height:380px;
+  display:flex;flex-direction:column;justify-content:space-between;
+}
+.intake-readout .readout-tag{
+  font-family:'Noto Sans SC',sans-serif;font-size:12px;
+  letter-spacing:0.28em;color:var(--ink-3);
+  margin-bottom:18px;
+}
+.intake-readout .h0{
+  font-family:'Barlow Condensed',sans-serif;font-weight:300;
+  font-size:96px;line-height:1;letter-spacing:0.02em;color:var(--ink);
+}
+.intake-readout .h0 .symbol{color:var(--ink-3);font-weight:300;font-size:0.5em;margin-right:0.1em;}
+.intake-readout .h0-eq{
+  font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--ink-2);
+  letter-spacing:0.06em;margin-top:20px;line-height:1.85;
+}
+.intake-readout .h0-eq .plus{color:var(--ink-3);margin:0 .4em;}
+.intake-readout .insight{
+  font-family:'Noto Sans SC',sans-serif;font-size:13px;color:var(--ink-2);
+  letter-spacing:0.12em;line-height:1.85;font-weight:300;
+  margin-top:32px;border-top:1px solid var(--line-faint);padding-top:24px;
+}
+
+.t-ladder{
+  margin-top:80px;
+  border-top:1px solid var(--line);
+}
+.t-ladder .ladder-title{
+  font-family:'Noto Sans SC',sans-serif;font-size:12px;
+  letter-spacing:0.28em;color:var(--ink-3);
+  padding:20px 0;display:flex;justify-content:space-between;
+}
+.t-ladder .ladder-row{
+  display:grid;
+  grid-template-columns:170px 1fr 100px 1fr;
+  gap:32px;
+  padding:22px 0;
+  border-top:1px solid var(--line-faint);
+  align-items:center;
+}
+.t-ladder .lr-range{
+  font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--ink);
+  letter-spacing:0.05em;
+}
+.t-ladder .lr-bar{
+  height:2px;background:var(--ink-5);position:relative;
+}
+.t-ladder .lr-bar::after{
+  content:"";position:absolute;left:0;top:0;height:100%;background:var(--ink);
+  width:var(--w);
+}
+.t-ladder .lr-mult{
+  font-family:'Barlow Condensed',sans-serif;font-weight:600;
+  font-size:32px;letter-spacing:0.04em;color:var(--ink);
+}
+.t-ladder .lr-mult .x{font-weight:300;color:var(--ink-3);font-size:0.6em;}
+.t-ladder .lr-desc{
+  font-family:'Noto Sans SC',sans-serif;font-size:13px;color:var(--ink-2);
+  letter-spacing:0.1em;font-weight:300;
+}
+
+/* ============ 场景 4 :: 信源系数 S ============ */
+.matrix-grid{
+  display:grid;grid-template-columns:repeat(5,1fr);
+  gap:0;margin-top:32px;
+  border-top:1px solid var(--line);
+}
+.s-cell{
+  position:relative;
+  padding:24px;border-right:1px solid var(--line-faint);border-bottom:1px solid var(--line-faint);
+  display:flex;flex-direction:column;gap:6px;
+  min-height:160px;
+}
+.s-cell:nth-child(5n){border-right:none;}
+.s-cell .s-code{
+  font-family:'JetBrains Mono',monospace;font-size:10px;
+  letter-spacing:0.18em;color:var(--ink-3);
+}
+.s-cell .s-combo{
+  font-family:'Noto Sans SC',sans-serif;font-weight:400;font-size:14px;
+  color:var(--ink);letter-spacing:0.08em;line-height:1.5;
+}
+.s-cell .s-mult{
+  font-family:'Barlow Condensed',sans-serif;font-weight:500;
+  font-size:42px;line-height:1;letter-spacing:0.04em;
+  color:var(--ink);margin-top:auto;
+}
+.s-cell .s-mult .lbl{font-size:11px;color:var(--ink-3);
+  font-family:'Noto Sans SC',sans-serif;letter-spacing:0.2em;
+  margin-left:6px;font-weight:300;}
+.s-cell.peak{background:linear-gradient(180deg,rgba(255,85,48,0.06),transparent 80%);}
+.s-cell.peak .s-mult{color:var(--ember-2);}
+
+/* ============ 场景 5 :: K + D ============ */
+.kd-stage{
+  display:grid;grid-template-columns:1fr 1fr;gap:60px;
+}
+.kd-col h3{
+  font-family:'Noto Sans SC',sans-serif;font-weight:500;
+  font-size:16px;letter-spacing:0.28em;color:var(--ink);
+  padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:0;
+  display:flex;justify-content:space-between;align-items:baseline;
+}
+.kd-col h3 small{
+  font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.10em;
+  color:var(--ink-3);font-weight:300;
+}
+.kd-row{
+  display:grid;grid-template-columns:96px 1fr 1fr;gap:24px;
+  padding:22px 0;border-bottom:1px solid var(--line-faint);align-items:center;
+}
+.kd-row .kd-mult{
+  font-family:'Barlow Condensed',sans-serif;font-weight:500;font-size:32px;
+  color:var(--ink);letter-spacing:0.04em;
+}
+.kd-row .kd-mult .x{font-weight:300;color:var(--ink-3);font-size:0.6em;margin-right:4px;}
+.kd-row .kd-label{
+  font-family:'Noto Sans SC',sans-serif;font-size:14px;color:var(--ink);
+  letter-spacing:0.12em;font-weight:400;
+}
+.kd-row .kd-desc{
+  font-family:'Noto Sans SC',sans-serif;font-size:12px;color:var(--ink-2);
+  letter-spacing:0.1em;font-weight:300;line-height:1.7;
+}
+
+/* ============ 场景 6 :: 类目星图 ============ */
+.universe{
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 50%, rgba(240,240,250,0.03) 0%, transparent 60%);
+}
+.cat-grid{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:0;
+  margin-top:24px;
+  border-top:1px solid var(--line);
+  border-left:1px solid var(--line-faint);
+}
+.cat-cell{
+  position:relative;
+  padding:24px 26px 26px;
+  border-right:1px solid var(--line-faint);
+  border-bottom:1px solid var(--line-faint);
+  display:flex;flex-direction:column;gap:8px;
+  min-height:240px;
+  transition:background .4s;
+  cursor:default;
+}
+.cat-cell:hover{background:rgba(240,240,250,0.03);}
+
+.cat-cell .cat-head{
+  display:flex;justify-content:space-between;align-items:center;
+  gap:12px;margin-bottom:6px;
+}
+.cat-cell .cat-code{
+  font-family:'JetBrains Mono',monospace;font-size:11px;
+  letter-spacing:0.22em;color:var(--ink-3);
+}
+.cat-cell .cat-badge{
+  font-family:'Noto Sans SC',sans-serif;font-size:10px;letter-spacing:0.16em;
+  padding:3px 9px;border:1px solid var(--ink-4);color:var(--ink-3);
+  white-space:nowrap;
+}
+.cat-cell .cat-name{
+  font-family:'Noto Sans SC',sans-serif;font-weight:400;font-size:18px;
+  letter-spacing:0.06em;color:var(--ink);line-height:1.4;margin-bottom:4px;
+}
+.cat-cell .cat-meta{
+  font-family:'Noto Sans SC',sans-serif;font-size:12px;
+  letter-spacing:0.16em;color:var(--ink-2);
+  margin-bottom:auto;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;
+}
+.cat-cell .cat-meta .sep{color:var(--ink-4);}
+.cat-cell .cat-meta .cat-w{
+  font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:0.05em;
+  color:var(--ink);padding:2px 8px;background:var(--ghost-bg);
+  border:1px solid var(--line-faint);
+}
+.cat-cell .cat-desc{
+  font-family:'Noto Sans SC',sans-serif;font-size:12px;color:var(--ink-2);
+  letter-spacing:0.06em;font-weight:300;line-height:1.7;
+  margin-top:8px;
+}
+.cat-cell.redline{
+  background:linear-gradient(180deg,rgba(255,85,48,0.04),transparent 80%);
+}
+.cat-cell.redline .cat-code{color:var(--ember-2);}
+.cat-cell.redline .cat-badge{border-color:var(--ember-2);color:var(--ember-2);}
+.cat-cell.redline .cat-meta .cat-w{border-color:rgba(255,85,48,0.35);color:var(--ember-2);}
+
+/* ============ 场景 6 子块 :: 3D 场景球 ============ */
+.universe-orbit{
+  margin-top:96px;border-top:1px solid var(--line);padding-top:48px;
+}
+.universe-orbit .uo-tag{
+  font-family:'Noto Sans SC',sans-serif;font-size:12px;letter-spacing:0.22em;
+  color:var(--ink-3);margin-bottom:8px;
+}
+.universe-orbit .uo-title{
+  font-family:'Noto Sans SC',sans-serif;font-size:24px;letter-spacing:0.12em;
+  color:var(--ink);margin-bottom:8px;font-weight:400;
+}
+.universe-orbit .uo-sub{
+  font-family:'Noto Sans SC',sans-serif;font-size:12px;letter-spacing:0.12em;
+  color:var(--ink-3);margin-bottom:32px;font-weight:300;
+}
+.universe-stage{
+  display:grid;grid-template-columns:1.05fr 0.95fr;gap:48px;align-items:start;
+}
+.universe-canvas-wrap{
+  position:relative;width:100%;aspect-ratio:1;max-width:620px;margin:0 auto;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255,85,48,0.06) 0%, transparent 50%),
+    radial-gradient(circle at 30% 30%, rgba(92,225,230,0.04) 0%, transparent 60%);
+  border:1px solid var(--line-faint);
+}
+#sphereCanvas{width:100%;height:100%;display:block;cursor:grab;}
+#sphereCanvas:active{cursor:grabbing;}
+.sphere-tip{
+  position:absolute;pointer-events:none;
+  padding:6px 10px;background:rgba(0,0,0,0.85);
+  border:1px solid var(--line-faint);
+  font-family:'Noto Sans SC',sans-serif;font-size:12px;color:var(--ink);
+  letter-spacing:0.08em;line-height:1.4;white-space:nowrap;
+  transform:translate(12px,-50%);
+  opacity:0;transition:opacity .18s;
+  z-index:5;
+  max-width:240px;
+}
+.sphere-tip .tip-code{
+  font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--signal);
+  letter-spacing:0.08em;display:block;margin-bottom:2px;
+}
+.sphere-tip.show{opacity:1;}
+.sphere-tip.redline{border-color:rgba(255,85,48,0.5);}
+.sphere-tip.redline .tip-code{color:var(--ember-2);}
+.sphere-chip.all{
+  border-color:var(--ink-3);color:var(--ink);
+  font-family:'Noto Sans SC',sans-serif;letter-spacing:0.16em;
+  margin-right:4px;
+}
+.sphere-chip.all.active{background:rgba(240,240,250,0.18);border-color:var(--ink);}
+.universe-canvas-wrap .uc-corner{
+  position:absolute;color:var(--ink-3);font-family:'JetBrains Mono',monospace;
+  font-size:9px;letter-spacing:0.18em;
+}
+.universe-canvas-wrap .uc-tl{top:10px;left:12px;}
+.universe-canvas-wrap .uc-br{bottom:10px;right:12px;}
+.universe-detail{display:flex;flex-direction:column;gap:18px;}
+.sphere-nav{display:flex;flex-direction:column;gap:12px;}
+.sphere-nav-label{
+  font-family:'Noto Sans SC',sans-serif;font-size:11px;letter-spacing:0.18em;
+  color:var(--ink-3);margin-bottom:6px;display:block;
+}
+.sphere-search-wrap{position:relative;}
+.sphere-search-input{
+  width:100%;background:transparent;border:1px solid var(--line);color:var(--ink);
+  padding:10px 12px;font-family:'Noto Sans SC',sans-serif;font-size:13px;
+  letter-spacing:0.06em;outline:none;
+}
+.sphere-search-input::placeholder{color:var(--ink-3);}
+.sphere-search-input:focus{border-color:var(--ink);}
+.sphere-search-results{
+  position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:20;
+  max-height:240px;overflow:auto;
+  border:1px solid var(--line);background:rgba(0,0,0,0.92);
+  display:none;
+}
+.sphere-search-results.show{display:block;}
+.sphere-search-item{
+  padding:10px 12px;border-bottom:1px solid var(--line-faint);cursor:pointer;
+  font-family:'Noto Sans SC',sans-serif;font-size:12px;color:var(--ink-2);
+  letter-spacing:0.06em;line-height:1.5;transition:background .2s,color .2s;
+}
+.sphere-search-item:last-child{border-bottom:none;}
+.sphere-search-item:hover,.sphere-search-item.active{background:rgba(240,240,250,0.08);color:var(--ink);}
+.sphere-search-item .sr-code{
+  font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--signal);
+  letter-spacing:0.08em;margin-right:8px;
+}
+.sphere-search-item .sr-def{
+  display:block;margin-top:4px;font-size:11px;color:var(--ink-3);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.sphere-search-empty{
+  padding:12px;font-family:'Noto Sans SC',sans-serif;font-size:12px;
+  color:var(--ink-3);letter-spacing:0.08em;
+}
+.universe-filter{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px;}
+.sphere-chip{
+  font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.10em;
+  padding:6px 10px;border:1px solid var(--line-faint);
+  color:var(--ink-2);background:transparent;cursor:pointer;
+  transition:all .25s;line-height:1;
+}
+.sphere-chip:hover{color:var(--ink);border-color:var(--ink-3);}
+.sphere-chip.active{
+  background:rgba(240,240,250,0.10);color:var(--ink);border-color:var(--ink);
+}
+.sphere-chip.redline{border-color:rgba(255,85,48,0.35);color:rgba(255,122,60,0.85);}
+.sphere-chip.redline:hover{color:var(--ember);}
+.sphere-chip.redline.active{background:rgba(255,85,48,0.10);color:var(--ember);border-color:var(--ember);}
+.universe-detail-card{
+  border:1px solid var(--line);padding:24px;
+  font-family:'Noto Sans SC',sans-serif;
+  display:flex;flex-direction:column;gap:12px;
+  min-height:260px;
+  background:rgba(255,255,255,0.01);
+}
+.universe-detail-card .sd-cat{
+  font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-3);
+  letter-spacing:0.18em;
+}
+.universe-detail-card .sd-cat.redline{color:var(--ember-2);}
+.universe-detail-card .sd-code{
+  font-family:'JetBrains Mono',monospace;font-size:14px;color:var(--signal);
+  letter-spacing:0.1em;
+}
+.universe-detail-card .sd-name{
+  font-family:'Noto Sans SC',sans-serif;font-size:20px;color:var(--ink);
+  letter-spacing:0.06em;line-height:1.5;font-weight:400;margin-top:4px;
+}
+.universe-detail-card .sd-meta{
+  display:flex;gap:20px;align-items:baseline;
+  font-family:'Noto Sans SC',sans-serif;font-size:12px;color:var(--ink-2);
+  letter-spacing:0.10em;margin-top:6px;
+}
+.universe-detail-card .sd-w{
+  font-family:'Barlow Condensed',sans-serif;font-weight:500;font-size:38px;
+  color:var(--ink);letter-spacing:0.04em;line-height:1;
+}
+.universe-detail-card .sd-w.redline{color:var(--ember-2);}
+.universe-detail-card .sd-w small{
+  font-family:'Noto Sans SC',sans-serif;font-size:11px;
+  color:var(--ink-3);letter-spacing:0.16em;font-weight:300;margin-left:6px;
+}
+.universe-detail-card .sd-hint{
+  font-family:'Noto Sans SC',sans-serif;font-size:12px;color:var(--ink-2);
+  letter-spacing:0.06em;line-height:1.85;font-weight:300;
+  border-top:1px solid var(--line-faint);padding-top:14px;margin-top:auto;
+}
+.universe-tip{
+  font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-3);
+  letter-spacing:0.10em;text-align:center;margin-top:14px;
+}
+
+/* ============ 场景 7 :: DCBAS 阶梯 ============ */
+.dcbas-stage{
+  display:grid;grid-template-columns:1fr;gap:0;margin-top:24px;
+  position:relative;
+}
+.dcbas-row{
+  position:relative;
+  display:grid;
+  grid-template-columns:90px 180px 1fr 1.2fr 0.9fr 0.9fr;
+  gap:28px;
+  padding:32px 0;
+  border-top:1px solid var(--line-faint);
+  align-items:center;
+}
+.dcbas-row:first-child{border-top:1px solid var(--line);}
+.dcbas-row .dc-tier{
+  font-family:'Barlow Condensed',sans-serif;font-weight:600;
+  font-size:64px;line-height:1;letter-spacing:0.02em;color:var(--ink);
+  position:relative;
+}
+.dcbas-row .dc-tier::after{
+  content:attr(data-cn);display:block;
+  font-family:'Noto Sans SC',sans-serif;font-weight:300;
+  font-size:11px;letter-spacing:0.32em;color:var(--ink-3);
+  margin-top:6px;
+}
+.dcbas-row .dc-range{
+  font-family:'JetBrains Mono',monospace;font-size:15px;color:var(--ink);
+  letter-spacing:0.05em;display:flex;flex-direction:column;gap:4px;
+}
+.dcbas-row .dc-range small{
+  font-family:'Noto Sans SC',sans-serif;font-size:11px;color:var(--ink-3);
+  letter-spacing:0.18em;font-weight:300;
+}
+.dcbas-row .dc-define{
+  font-family:'Noto Sans SC',sans-serif;font-size:14px;color:var(--ink);
+  letter-spacing:0.06em;line-height:1.7;font-weight:400;
+}
+.dcbas-row .dc-sop{
+  font-family:'Noto Sans SC',sans-serif;font-size:12px;color:var(--ink-2);
+  letter-spacing:0.06em;line-height:1.7;font-weight:300;
+}
+.dcbas-row .dc-team{
+  font-family:'Noto Sans SC',sans-serif;font-size:12px;color:var(--ink);
+  letter-spacing:0.06em;line-height:1.6;font-weight:300;
+}
+.dcbas-row .dc-sla{
+  font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--ink);
+  letter-spacing:0.08em;display:flex;flex-direction:column;gap:4px;
+}
+.dcbas-row .dc-sla small{font-family:'Noto Sans SC',sans-serif;font-size:10px;
+  color:var(--ink-3);letter-spacing:0.22em;font-weight:300;}
+.dcbas-row.t-d  .dc-tier{color:rgba(240,240,250,0.45);}
+.dcbas-row.t-c  .dc-tier{color:rgba(240,240,250,0.70);}
+.dcbas-row.t-bm .dc-tier{color:var(--ink);}
+.dcbas-row.t-bp .dc-tier{color:var(--warn);}
+.dcbas-row.t-am .dc-tier{color:var(--ember-2);}
+.dcbas-row.t-a  .dc-tier{color:var(--ember);}
+.dcbas-row.t-ap .dc-tier{color:var(--ember);text-shadow:0 0 18px rgba(255,85,48,0.4);}
+.dcbas-row.t-s  .dc-tier{color:var(--ember);text-shadow:0 0 30px rgba(255,85,48,0.6);}
+
+/* ============ 场景 8 :: 红线兜底 ============ */
+.redline-stage{
+  display:grid;grid-template-columns:1fr;gap:0;margin-top:24px;
+  border-top:1px solid var(--line);
+}
+.rl-row{
+  display:grid;
+  grid-template-columns:60px 1fr 130px 1fr;
+  gap:32px;
+  padding:30px 0;
+  border-bottom:1px solid var(--line-faint);
+  align-items:center;
+}
+.rl-row .rl-num{
+  font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-3);
+  letter-spacing:0.22em;
+}
+.rl-row .rl-trigger{
+  font-family:'Noto Sans SC',sans-serif;font-size:16px;color:var(--ink);
+  letter-spacing:0.08em;font-weight:400;line-height:1.5;
+}
+.rl-row .rl-floor{
+  font-family:'Barlow Condensed',sans-serif;font-weight:500;
+  font-size:34px;letter-spacing:0.04em;color:var(--ember-2);line-height:1;
+  text-align:right;
+}
+.rl-row .rl-floor small{
+  display:block;font-family:'Noto Sans SC',sans-serif;font-size:11px;
+  color:var(--ink-3);letter-spacing:0.18em;
+  margin-top:4px;font-weight:300;
+}
+.rl-row .rl-action{
+  font-family:'Noto Sans SC',sans-serif;font-size:13px;color:var(--ink-2);
+  letter-spacing:0.06em;line-height:1.7;font-weight:300;
+}
+.rl-row .rl-action .pill{
+  display:inline-block;padding:2px 10px;margin-right:6px;margin-top:4px;
+  border:1px solid var(--ink-4);font-family:'Noto Sans SC',sans-serif;
+  font-size:11px;letter-spacing:0.12em;color:var(--ink);
+}
+.rl-row.s-tier .rl-floor{color:var(--ember);text-shadow:0 0 20px rgba(255,85,48,0.5);}
+
+.redline-bg{
+  position:absolute;inset:0;
+  background:radial-gradient(ellipse 60% 50% at 30% 30%, rgba(255,85,48,0.04) 0%, transparent 70%);
+  pointer-events:none;
+}
+
+/* ============ 场景 9 :: RNFP ============ */
+.rnfp-stage{
+  display:grid;grid-template-columns:1.1fr 0.9fr;gap:80px;margin-top:24px;
+  align-items:start;
+}
+.rnfp-diagram{
+  position:relative;
+  min-height:520px;
+  border:1px solid var(--line);
+  padding:32px;
+}
+.rnfp-node{
+  position:absolute;
+  display:flex;flex-direction:column;gap:4px;
+}
+.rnfp-node .node-letter{
+  font-family:'Barlow Condensed',sans-serif;font-weight:500;
+  font-size:54px;line-height:1;color:var(--ink);letter-spacing:0.04em;
+}
+.rnfp-node .node-name{
+  font-family:'Noto Sans SC',sans-serif;font-size:13px;letter-spacing:0.16em;
+  color:var(--ink);font-weight:400;
+}
+.rnfp-node .node-from{
+  font-family:'Noto Sans SC',sans-serif;font-size:11px;letter-spacing:0.18em;
+  color:var(--ink-3);font-weight:300;
+}
+.rnfp-node.np-p{top:40px;left:50%;transform:translateX(-50%);text-align:center;}
+.rnfp-node.np-p .node-letter{font-size:72px;color:var(--ember-2);}
+.rnfp-node.np-r{bottom:80px;left:8%;}
+.rnfp-node.np-n{bottom:80px;left:50%;transform:translateX(-50%);text-align:center;}
+.rnfp-node.np-f{bottom:80px;right:8%;text-align:right;}
+.rnfp-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
+.rnfp-formula-row{
+  position:absolute;bottom:24px;left:32px;right:32px;
+  border-top:1px solid var(--line-faint);padding-top:18px;
+  font-family:'Noto Sans SC',sans-serif;font-size:12px;
+  letter-spacing:0.1em;color:var(--ink-3);line-height:1.85;font-weight:300;
+}
+.rnfp-formula-row .ink{color:var(--ink);}
+.rnfp-formula-row .mono{font-family:'JetBrains Mono',monospace;letter-spacing:0;color:var(--ink);}
+.rnfp-formula{
+  position:absolute;
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;
+  color:rgba(240,240,250,0.6);
+  letter-spacing:0.04em;
+  white-space:nowrap;
+  padding:6px 10px;
+  background:rgba(0,0,0,0.55);
+  border:1px solid var(--line-faint);
+}
+.rnfp-formula-r{ left:6%; top:48%; }
+.rnfp-formula-n{ left:50%; top:62%; transform:translateX(-50%); }
+.rnfp-formula-f{ right:6%; top:48%; }
+
+.rnfp-rules{display:flex;flex-direction:column;gap:0;}
+.rnfp-rule{
+  padding:22px 0;border-bottom:1px solid var(--line-faint);
+  display:grid;grid-template-columns:100px 1fr;gap:18px;align-items:start;
+}
+.rnfp-rule:first-child{border-top:1px solid var(--line);}
+.rnfp-rule .rr-tag{
+  font-family:'Noto Sans SC',sans-serif;font-size:13px;letter-spacing:0.18em;
+  color:var(--ink);
+}
+.rnfp-rule .rr-tag.mono{font-family:'JetBrains Mono',monospace;letter-spacing:0.08em;}
+.rnfp-rule .rr-desc{
+  font-family:'Noto Sans SC',sans-serif;font-size:13px;color:var(--ink-2);
+  letter-spacing:0.08em;line-height:1.85;font-weight:300;
+}
+.rnfp-rule .rr-desc .ink{color:var(--ink);}
+.rnfp-rule .rr-desc .mono{font-family:'JetBrains Mono',monospace;letter-spacing:0.04em;color:var(--ink);}
+
+/* ============ 场景 9 子块 :: 观察池 + 周期承载 ============ */
+.pool-block{margin-top:80px;border-top:1px solid var(--line);padding-top:36px;}
+.pool-tag{
+  font-family:'Noto Sans SC',sans-serif;font-size:12px;letter-spacing:0.22em;
+  color:var(--ink-3);margin-bottom:24px;
+  display:flex;justify-content:space-between;align-items:baseline;
+}
+.pool-stage{
+  display:grid;grid-template-columns:1.1fr 0.9fr;gap:36px;align-items:start;
+}
+.pool-noise, .pool-cycle{
+  padding:24px;border:1px solid var(--line-faint);
+  background:rgba(255,255,255,0.01);
+}
+.pool-noise .ph, .pool-cycle .ph{
+  font-family:'Noto Sans SC',sans-serif;font-size:13px;letter-spacing:0.18em;
+  color:var(--ink);margin-bottom:18px;font-weight:400;
+}
+.pool-svg{width:100%;height:auto;display:block;margin-bottom:18px;}
+.pool-rules{
+  font-family:'Noto Sans SC',sans-serif;font-size:12px;color:var(--ink-2);
+  letter-spacing:0.06em;line-height:1.95;font-weight:300;
+  border-top:1px solid var(--line-faint);padding-top:14px;
+}
+.pool-rules .pr-row{display:flex;gap:8px;align-items:baseline;}
+.pool-rules .pr-tag{
+  font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-3);
+  letter-spacing:0.16em;min-width:48px;
+}
+.pool-rules .warn{color:var(--warn);}
+.pool-rules .ember{color:var(--ember-2);}
+.pool-rules .mono{font-family:'JetBrains Mono',monospace;letter-spacing:0.04em;color:var(--ink);}
+.cycle-grid{
+  display:grid;grid-template-columns:60px repeat(4, 1fr);gap:0;
+  border-top:1px solid var(--line-faint);
+  font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--ink);
+  letter-spacing:0.04em;
+}
+.cycle-grid > div{
+  padding:11px 8px;border-bottom:1px solid var(--line-faint);
+  text-align:center;
+}
+.cycle-grid > div.ch{
+  font-family:'Noto Sans SC',sans-serif;font-size:11px;letter-spacing:0.16em;
+  color:var(--ink-3);font-weight:400;
+}
+.cycle-grid > div.cl{
+  font-family:'Noto Sans SC',sans-serif;font-size:13px;letter-spacing:0.20em;
+  color:var(--ink);text-align:left;padding-left:0;
+}
+.cycle-rules{
+  margin-top:18px;font-family:'Noto Sans SC',sans-serif;font-size:12px;
+  color:var(--ink-2);letter-spacing:0.06em;line-height:1.95;
+  border-top:1px solid var(--line-faint);padding-top:14px;
+}
+.cycle-rules .cr-row{display:flex;gap:8px;align-items:baseline;}
+.cycle-rules .cr-tag{
+  font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-3);
+  letter-spacing:0.16em;min-width:48px;
+}
+.cycle-rules .mono{font-family:'JetBrains Mono',monospace;color:var(--ink);}
+.cycle-rules .warn{color:var(--warn);}
+.cycle-rules .ember{color:var(--ember-2);}
+
+/* ============ 场景 10 :: 25 起案例 ============ */
+.cases-grid{
+  display:grid;grid-template-columns:repeat(5,1fr);gap:0;
+  margin-top:32px;
+  border-top:1px solid var(--line);
+  border-left:1px solid var(--line-faint);
+}
+.case-cell{
+  border-right:1px solid var(--line-faint);
+  border-bottom:1px solid var(--line-faint);
+  padding:18px 18px 16px;
+  display:flex;flex-direction:column;gap:8px;
+  min-height:300px;
+  position:relative;
+  transition:background .3s;
+}
+.case-cell:hover{background:rgba(240,240,250,0.025);}
+.case-cell .case-head{
+  display:flex;justify-content:flex-start;align-items:center;gap:10px;
+  padding-right:46px;  /* 给右上角的 Tier 字母让出位置 */
+  min-height:18px;
+}
+.case-cell .case-id{
+  font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.22em;
+  color:var(--ink-3);
+}
+.case-cell .case-redline{
+  font-family:'Noto Sans SC',sans-serif;font-size:9px;letter-spacing:0.10em;
+  padding:2px 6px;border:1px solid var(--ember-2);color:var(--ember-2);
+  white-space:nowrap;background:rgba(0,0,0,0.55);
+}
+.case-cell .case-tier{
+  position:absolute;top:12px;right:16px;
+  font-family:'Barlow Condensed',sans-serif;font-weight:500;
+  font-size:34px;letter-spacing:0.04em;color:var(--ink);line-height:1;
+  z-index:1;
+}
+.case-cell .case-scn{
+  font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-3);
+  letter-spacing:0.10em;
+}
+.case-cell .case-title{
+  font-family:'Noto Sans SC',sans-serif;font-size:13px;color:var(--ink);
+  letter-spacing:0.04em;line-height:1.5;font-weight:400;
+  margin-top:8px;min-height:42px;
+}
+.case-cell .case-coefs{
+  display:grid;grid-template-columns:repeat(5,1fr);gap:2px;
+  padding:10px 0;border-top:1px solid var(--line-faint);
+}
+.case-cell .case-coef{
+  text-align:center;
+}
+.case-cell .case-coef .lk{
+  font-family:'Noto Sans SC',sans-serif;font-size:9px;color:var(--ink-3);
+  letter-spacing:0.08em;margin-bottom:2px;
+}
+.case-cell .case-coef .vk{
+  font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink);
+  letter-spacing:0.04em;
+}
+.case-cell .case-sigs{
+  font-family:'Noto Sans SC',sans-serif;font-size:11px;color:var(--ink-2);
+  letter-spacing:0.04em;line-height:1.8;font-weight:300;
+  padding:8px 0;border-top:1px solid var(--line-faint);
+  min-height:48px;
+}
+.case-cell .case-sigs .sig-item{
+  display:inline-block;margin-right:10px;white-space:nowrap;
+}
+.case-cell .case-sigs .sig-item .sn{color:var(--ink-3);font-size:10px;letter-spacing:0.10em;}
+.case-cell .case-sigs .sig-item .sv{font-family:'JetBrains Mono',monospace;color:var(--ink);margin-left:3px;}
+.case-cell .case-sigs .sig-empty{color:var(--ink-3);font-size:11px;}
+.case-cell .case-e{
+  margin-top:auto;
+  padding-top:8px;border-top:1px solid var(--line-faint);
+  display:flex;justify-content:space-between;align-items:baseline;
+  font-family:'Noto Sans SC',sans-serif;font-size:11px;color:var(--ink-3);
+  letter-spacing:0.16em;
+}
+.case-cell .case-e .val{
+  font-family:'Barlow Condensed',sans-serif;font-weight:500;font-size:24px;
+  color:var(--ink);letter-spacing:0.04em;line-height:1;
+}
+.case-cell.t-d  .case-tier{color:rgba(240,240,250,0.45);}
+.case-cell.t-c  .case-tier{color:rgba(240,240,250,0.7);}
+.case-cell.t-bm .case-tier{color:var(--ink);}
+.case-cell.t-bp .case-tier{color:var(--warn);}
+.case-cell.t-am .case-tier{color:var(--ember-2);}
+.case-cell.t-a  .case-tier{color:var(--ember);}
+.case-cell.t-ap .case-tier{color:var(--ember);text-shadow:0 0 18px rgba(255,85,48,0.4);}
+.case-cell.t-s  .case-tier{color:var(--ember);text-shadow:0 0 30px rgba(255,85,48,0.6);}
+
+.cases-stats{
+  display:grid;grid-template-columns:repeat(5,1fr);gap:0;
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  margin-top:36px;
+}
+.cases-stats .stat{
+  padding:24px;border-right:1px solid var(--line-faint);
+}
+.cases-stats .stat:last-child{border-right:none;}
+.cases-stats .stat .lbl{
+  font-family:'Noto Sans SC',sans-serif;font-size:11px;letter-spacing:0.24em;
+  color:var(--ink-3);margin-bottom:8px;
+}
+.cases-stats .stat .val{
+  font-family:'Barlow Condensed',sans-serif;font-weight:500;font-size:40px;
+  color:var(--ink);letter-spacing:0.04em;line-height:1;
+}
+.cases-stats .stat .val .unit{font-size:14px;color:var(--ink-3);margin-left:6px;font-weight:300;}
+
+/* ============ 场景 11 :: 实时演算 ============ */
+.sim-stage{
+  display:grid;grid-template-columns:1fr 1.05fr;gap:0;margin-top:24px;
+  border-top:1px solid var(--line);
+}
+.sim-controls{
+  padding:36px 36px 36px 0;
+  border-right:1px solid var(--line-faint);
+}
+.sim-readout{padding:36px 0 36px 36px;}
+
+.sim-group{margin-bottom:30px;}
+.sim-group .gh{
+  font-family:'Noto Sans SC',sans-serif;font-size:12px;letter-spacing:0.22em;
+  color:var(--ink-3);margin-bottom:14px;
+  display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;
+}
+.sim-group .gh small{
+  font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-2);
+  letter-spacing:0.06em;
+}
+.sim-options{
+  display:flex;flex-wrap:wrap;gap:6px;
+}
+.sim-opt{
+  font-family:'Noto Sans SC',sans-serif;font-weight:400;
+  font-size:12px;letter-spacing:0.10em;
+  padding:8px 14px;border:1px solid var(--line);
+  color:var(--ink-2);cursor:pointer;
+  transition:all .25s;
+  background:transparent;
+}
+.sim-opt:hover{color:var(--ink);border-color:var(--ink-3);}
+.sim-opt.active{
+  background:rgba(240,240,250,0.1);
+  color:var(--ink);border-color:var(--ink);
+}
+.sim-opt .v{
+  font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-3);
+  margin-left:8px;letter-spacing:0;
+}
+.sim-opt.active .v{color:var(--signal);}
+
+.sim-inputs{
+  display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;
+}
+.sim-input{
+  display:flex;flex-direction:column;gap:6px;
+}
+.sim-input label{
+  font-family:'Noto Sans SC',sans-serif;font-size:11px;color:var(--ink-2);
+  letter-spacing:0.1em;font-weight:300;
+  display:flex;justify-content:space-between;
+}
+.sim-input label .hint{
+  font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-3);
+  letter-spacing:0.04em;
+}
+.sim-input input{
+  background:transparent;border:none;border-bottom:1px solid var(--line);
+  color:var(--ink);font-family:'JetBrains Mono',monospace;font-size:14px;
+  padding:6px 0;letter-spacing:0.04em;
+  outline:none;width:100%;
+}
+.sim-input input:focus{border-color:var(--ink);}
+
+.sim-cat-select,.sim-scn-select{
+  width:100%;background:transparent;border:1px solid var(--line);color:var(--ink);
+  padding:10px 12px;font-family:'Noto Sans SC',sans-serif;font-size:13px;
+  letter-spacing:0.06em;
+  outline:none;
+  appearance:none;cursor:pointer;
+  background-image:linear-gradient(45deg,transparent 50%,var(--ink) 50%),linear-gradient(135deg,var(--ink) 50%,transparent 50%);
+  background-position:calc(100% - 18px) 50%,calc(100% - 12px) 50%;
+  background-size:6px 6px,6px 6px;
+  background-repeat:no-repeat;
+  margin-bottom:8px;
+}
+.sim-cat-select:focus,.sim-scn-select:focus{border-color:var(--ink);}
+.sim-cat-select option,.sim-scn-select option{background:#0a0a0a;color:var(--ink);}
+
+/* readout side */
+.sim-e-display{
+  border-bottom:1px solid var(--line);
+  padding-bottom:28px;margin-bottom:28px;
+  display:flex;justify-content:space-between;align-items:flex-end;
+}
+.sim-e-display .e-val{
+  font-family:'Barlow Condensed',sans-serif;font-weight:300;
+  font-size:144px;line-height:0.9;letter-spacing:0.02em;color:var(--ink);
+  transition:color .5s,text-shadow .5s;
+}
+.sim-e-display .e-val.warn{color:var(--warn);}
+.sim-e-display .e-val.ember{color:var(--ember-2);text-shadow:0 0 24px rgba(255,85,48,0.4);}
+.sim-e-display .e-val.crit{color:var(--ember);text-shadow:0 0 40px rgba(255,85,48,0.6);}
+.sim-e-display .e-meta{
+  text-align:right;
+  font-family:'Noto Sans SC',sans-serif;font-size:12px;color:var(--ink-3);
+  letter-spacing:0.18em;line-height:1.8;
+}
+.sim-e-display .e-meta .tier{
+  font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:64px;
+  letter-spacing:0.04em;color:var(--ink);line-height:1;
+  display:block;margin-bottom:8px;
+}
+.sim-e-display .e-meta .tier.warn{color:var(--warn);}
+.sim-e-display .e-meta .tier.ember{color:var(--ember-2);}
+.sim-e-display .e-meta .tier.crit{color:var(--ember);text-shadow:0 0 30px rgba(255,85,48,0.6);}
+
+.sim-breakdown{
+  display:grid;grid-template-columns:repeat(5,1fr);gap:0;
+  border-top:1px solid var(--line-faint);
+  border-bottom:1px solid var(--line-faint);
+  padding:18px 0;margin-bottom:24px;
+}
+.sim-bd{
+  padding:0 18px;border-right:1px solid var(--line-faint);
+}
+.sim-bd:last-child{border-right:none;}
+.sim-bd .lb{
+  font-family:'Noto Sans SC',sans-serif;font-size:11px;color:var(--ink-3);
+  letter-spacing:0.22em;margin-bottom:4px;
+}
+.sim-bd .vl{
+  font-family:'Barlow Condensed',sans-serif;font-weight:500;font-size:24px;
+  color:var(--ink);letter-spacing:0.04em;line-height:1;
+}
+
+.sim-sop{
+  font-family:'Noto Sans SC',sans-serif;font-size:13px;color:var(--ink-2);
+  letter-spacing:0.08em;line-height:1.85;font-weight:300;
+  padding:18px;border:1px solid var(--line-faint);
+}
+.sim-sop .sop-h{
+  font-family:'Noto Sans SC',sans-serif;font-size:12px;color:var(--ink);
+  letter-spacing:0.22em;
+  margin-bottom:10px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;
+}
+.sim-sop .sop-h .badge{
+  padding:2px 10px;border:1px solid var(--ink-4);font-size:11px;letter-spacing:0.12em;
+}
+.sim-sop .sop-h .badge.warn{border-color:var(--warn);color:var(--warn);}
+.sim-sop .sop-h .badge.ember{border-color:var(--ember-2);color:var(--ember-2);}
+.sim-sop .sop-h .badge.crit{border-color:var(--ember);color:var(--ember);box-shadow:0 0 12px rgba(255,85,48,0.3);}
+.sim-redline-on{
+  margin-top:14px;padding-top:14px;border-top:1px solid var(--line-faint);
+  font-family:'Noto Sans SC',sans-serif;font-size:12px;color:var(--ember-2);
+  letter-spacing:0.12em;
+}
+.sim-scene-readout{
+  margin-top:8px;font-family:'Noto Sans SC',sans-serif;font-size:11px;
+  color:var(--ink-3);letter-spacing:0.06em;line-height:1.6;
+}
+.sim-scene-readout .pill{
+  display:inline-block;padding:1px 8px;border:1px solid var(--line-faint);
+  margin-right:4px;color:var(--ink);font-family:'JetBrains Mono',monospace;
+  font-size:10px;letter-spacing:0.06em;
+}
+
+/* ============ 场景 12 :: 系统就绪 ============ */
+.outro{
+  align-items:center;
+  text-align:center;
+  background:radial-gradient(ellipse 60% 50% at 50% 60%, rgba(240,240,250,0.05) 0%, transparent 65%);
+  padding:120px 8vw 96px;
+}
+.outro .mission-tag{
+  font-family:'Noto Sans SC',sans-serif;font-size:12px;letter-spacing:0.4em;
+  color:var(--ink-3);margin-bottom:32px;
+  display:flex;justify-content:center;align-items:center;gap:18px;
+}
+.outro .mission-tag .dash{width:48px;height:1px;background:var(--ink-3);}
+.outro h2{
+  font-family:'Noto Sans SC',sans-serif;font-weight:500;
+  font-size:clamp(28px,4.6vw,60px);letter-spacing:0.18em;
+  line-height:1.2;margin-bottom:36px;color:var(--ink);
+  white-space:nowrap;max-width:100%;
+}
+.outro .principles{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:0;
+  width:min(1100px,90vw);
+  border-top:1px solid var(--line-faint);
+  border-bottom:1px solid var(--line-faint);
+  margin:48px 0 64px;
+}
+.outro .principle{
+  padding:32px 24px;
+  border-right:1px solid var(--line-faint);
+  text-align:left;
+}
+.outro .principle:last-child{border-right:none;}
+.outro .principle .pn{
+  font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.24em;
+  color:var(--ink-3);margin-bottom:14px;
+}
+.outro .principle .pt{
+  font-family:'Noto Sans SC',sans-serif;font-weight:400;font-size:16px;
+  letter-spacing:0.08em;color:var(--ink);line-height:1.5;margin-bottom:10px;
+}
+.outro .principle .pd{
+  font-family:'Noto Sans SC',sans-serif;font-size:12px;color:var(--ink-2);
+  letter-spacing:0.06em;line-height:1.7;font-weight:300;
+}
+.outro .signoff{
+  font-family:'Noto Sans SC',sans-serif;font-size:12px;letter-spacing:0.32em;
+  color:var(--ink-3);margin-top:24px;
+}
+
+/* ============ 底栏 ============ */
+footer.bottom{
+  position:relative;z-index:2;
+  padding:36px 8vw 24px;
+  border-top:1px solid var(--line-faint);
+  display:flex;justify-content:space-between;
+  font-family:'Noto Sans SC',sans-serif;font-size:11px;letter-spacing:0.18em;
+  color:var(--ink-3);
+}
+footer.bottom .mono{font-family:'JetBrains Mono',monospace;letter-spacing:0.08em;}
+
+/* ============ 响应式 ============ */
+@media (max-width:1180px){
+  section.scene{padding:120px 6vw 96px 6vw;}
+  .hero{padding:120px 6vw 96px 6vw;}
+  .hero h1.formula{font-size:clamp(34px,7vw,72px);}
+  .equation-grid{grid-template-columns:repeat(5,1fr);}
+  .cat-grid{grid-template-columns:repeat(2,1fr);}
+  .matrix-grid{grid-template-columns:repeat(2,1fr);}
+  .intake-stage,.rnfp-stage,.sim-stage,.kd-stage,.universe-stage,.pool-stage{grid-template-columns:1fr;gap:48px;}
+  .sim-controls{padding:36px 0;border-right:none;border-bottom:1px solid var(--line-faint);}
+  .sim-readout{padding:36px 0 0;}
+  .dcbas-row{grid-template-columns:80px 140px 1fr 1fr;}
+  .dcbas-row .dc-team,.dcbas-row .dc-sla{grid-column:span 2;font-size:11px;}
+  .cases-grid{grid-template-columns:repeat(3,1fr);}
+  .cases-stats{grid-template-columns:repeat(2,1fr);}
+  .cases-stats .stat{border-bottom:1px solid var(--line-faint);}
+  .outro .principles{grid-template-columns:repeat(2,1fr);}
+  .side-rail{display:none;}
+  .equation-grid{grid-template-columns:repeat(2,1fr);}
+  .hero h1.formula{font-size:54px;white-space:normal;line-height:1.2;}
+  .hero .vital-row{grid-template-columns:repeat(2,1fr);}
+}
+@media (max-width:720px){
+  section.scene{padding:120px 6vw 72px;}
+  nav.topbar{padding:14px 18px;}
+  nav.topbar .mission{display:none;}
+  .cat-grid{grid-template-columns:1fr;}
+  .cases-grid{grid-template-columns:repeat(2,1fr);}
+  .equation-grid{grid-template-columns:1fr;}
+  .matrix-grid{grid-template-columns:1fr;}
+  .dcbas-row{grid-template-columns:60px 1fr;}
+  .dcbas-row .dc-tier{font-size:36px;}
+  .dcbas-row .dc-define,.dcbas-row .dc-sop,.dcbas-row .dc-team,.dcbas-row .dc-sla{grid-column:span 2;}
+  .sim-e-display .e-val{font-size:80px;}
+  .sim-breakdown{grid-template-columns:repeat(2,1fr);}
+  .sim-bd{padding:10px;border-bottom:1px solid var(--line-faint);}
+}
+
+/* ============ 详情卡扩展行 (v2026.06) ============ */
+.universe-detail-card .sd-extra{
+  font-family:'Noto Sans SC',sans-serif;font-size:12px;color:var(--ink-2);
+  letter-spacing:0.08em;display:flex;gap:18px;flex-wrap:wrap;line-height:1.7;
+}
+.universe-detail-card .sd-extra .lbl{color:var(--ink-3);margin-right:6px;}
+.universe-detail-card .sd-def .lbl{color:var(--ink-3);margin-right:6px;}
+.universe-detail-card .sd-new{
+  display:inline-block;margin-left:10px;padding:2px 8px;
+  border:1px solid rgba(92,225,230,0.5);color:var(--signal);
+  font-family:'Noto Sans SC',sans-serif;font-size:10px;letter-spacing:0.16em;
+  vertical-align:2px;
+}
+.universe-detail-card .sd-def{
+  font-family:'Noto Sans SC',sans-serif;font-size:12px;color:var(--ink-2);
+  letter-spacing:0.06em;line-height:1.75;font-weight:300;
+}
+
+/* ============ 滚动条 ============ */
+::-webkit-scrollbar{width:8px;height:8px;}
+::-webkit-scrollbar-track{background:#000;}
+::-webkit-scrollbar-thumb{background:rgba(240,240,250,0.18);}
+::-webkit-scrollbar-thumb:hover{background:rgba(240,240,250,0.3);}
+
+/* ============ 章节角标 ============ */
+.scene::before{
+  content:"◬";
+  position:absolute;top:96px;right:8vw;
+  font-size:11px;color:var(--ink-4);letter-spacing:0;
+  font-family:'JetBrains Mono',monospace;
+}
+.hero::before{content:"";}
+</style>
+</head>
+<body>
+
+<canvas class="star-bg" id="starbg"></canvas>
+
+<!-- HUD 边框 -->
+<div class="hud-frame" aria-hidden="true">
+  <div class="hud-corner-tr"></div>
+  <div class="hud-corner-bl"></div>
+  <div class="hud-vline vl-1"></div>
+  <div class="hud-vline vl-2"></div>
+</div>
+
+<!-- 顶栏 -->
+<nav class="topbar">
+  <div class="brand">
+    <div class="mark">听</div>
+    <div>听潮阁 / 舆情整合系统 / 底层逻辑</div>
+  </div>
+  <div class="mission">
+    <span><span class="pulse-dot"></span>系统运行中 · V4.1 · 2026.06</span>
+    <span class="dim-2">规则包 · 204 个场景</span>
+  </div>
+</nav>
+
+<!-- 侧边导航 -->
+<aside class="side-rail" aria-hidden="true">
+  <a href="#s-hero"   data-target="s-hero" class="active"><span class="rail-num">01</span>底层逻辑</a>
+  <a href="#s-eq"     data-target="s-eq"><span class="rail-num">02</span>风险公式</a>
+  <a href="#s-intake" data-target="s-intake"><span class="rail-num">03</span>信源采集</a>
+  <a href="#s-s"      data-target="s-s"><span class="rail-num">04</span>信源矩阵</a>
+  <a href="#s-kd"     data-target="s-kd"><span class="rail-num">05</span>可信扩散</a>
+  <a href="#s-univ"   data-target="s-univ"><span class="rail-num">06</span>类目场景</a>
+  <a href="#s-ladder" data-target="s-ladder"><span class="rail-num">07</span>舆情定级</a>
+  <a href="#s-red"    data-target="s-red"><span class="rail-num">08</span>红线兜底</a>
+  <a href="#s-rnfp"   data-target="s-rnfp"><span class="rail-num">09</span>入账机制</a>
+  <a href="#s-cases"  data-target="s-cases"><span class="rail-num">10</span>案例测跑</a>
+  <a href="#s-sim"    data-target="s-sim"><span class="rail-num">11</span>实时演算</a>
+  <a href="#s-outro"  data-target="s-outro"><span class="rail-num">12</span>系统就绪</a>
+</aside>
+
+<main>
+
+  <!-- =============== 场景 1 :: 任务总览 =============== -->
+  <section class="scene hero" id="s-hero">
+    <div class="orbit-ring"></div>
+    <div class="orbit-ring r2"></div>
+    <div class="orbit-ring r3"></div>
+
+    <div class="pretitle reveal">
+      <span class="dash"></span>
+      <span>听潮阁舆情整合系统 · 底层逻辑</span>
+      <span class="dash"></span>
+    </div>
+
+    <h1 class="formula reveal d-1">
+      <span class="num">E</span>
+      <span class="op">=</span>
+      <span class="num">100</span>
+      <span class="op">×</span>
+      <span class="var">S</span>
+      <span class="op">×</span>
+      <span class="var">C</span>
+      <span class="op">×</span>
+      <span class="var">T</span>
+      <span class="op">×</span>
+      <span class="var">K</span>
+      <span class="op">×</span>
+      <span class="var">D</span>
+    </h1>
+
+    <div class="formula-cn reveal d-2">事 件 风 险 值 · 五 维 公 式</div>
+
+    <div class="cta-cluster reveal d-3">
+      <a href="#s-eq" class="ghost">逻辑拆解 <span class="arr">↓</span></a>
+      <a href="#s-sim" class="ghost" style="background:transparent;">实时演算 <span class="arr">→</span></a>
+    </div>
+
+    <div class="vital-row reveal d-4">
+      <div class="vital">
+        <div class="lbl">规则包</div>
+        <div class="val">V4.1<span class="unit">2026.06 修订版</span></div>
+      </div>
+      <div class="vital">
+        <div class="lbl">场景数</div>
+        <div class="val">204<span class="unit">·160+44</span></div>
+      </div>
+      <div class="vital">
+        <div class="lbl">分级</div>
+        <div class="val">8<span class="unit">D→S</span></div>
+      </div>
+      <div class="vital">
+        <div class="lbl">红线兜底</div>
+        <div class="val">8<span class="unit">条</span></div>
+      </div>
+      <div class="vital">
+        <div class="lbl">案例测跑</div>
+        <div class="val">25<span class="unit">·D5 C5 B5 A5 S5</span></div>
+      </div>
+    </div>
+
+    <div class="scroll-hint">
+      <span>向下滚动</span>
+      <span class="line"></span>
+    </div>
+  </section>
+
+  <!-- =============== 场景 2 :: 公式拆解 =============== -->
+  <section class="scene" id="s-eq">
+    <div class="scene-tag"><span class="bracket">[</span><span class="idx">02</span><span class="bracket">/12</span><span class="bracket">]</span> <span class="tag-cn">公式拆解</span></div>
+    <h2 class="scene-title reveal">五个系数 · 一个风险分
+      <span class="sub">把每一类风险归一到同一把尺子上</span>
+    </h2>
+    <p class="scene-lead reveal d-1">
+      整套系统只用一个公式衡量"事件风险值"——
+      <span style="color:var(--ink);">E = 100 × S × C × T × K × D</span>。
+      五个系数分别回答五个问题：谁在说？说什么？多少人在说？说得多可信？传得多远？
+      所有 D / C / B / A / S 分级、入库、红线兜底，都源自这一个数。
+    </p>
+
+    <div class="equation-grid">
+      <div class="eq-cell reveal" data-w="55">
+        <div class="var-letter">S</div>
+        <div class="var-name-cn">信源系数</div>
+        <div class="var-range">0.90 → 2.00</div>
+        <div class="bar-track" style="--w:55%"></div>
+        <div class="var-desc">谁在说。F预警 / 豆瓣 / 大小秘 / 社媒 四源任意组合，单源 → 四源齐发，权重逐级抬升。</div>
+      </div>
+      <div class="eq-cell reveal d-1" data-w="60">
+        <div class="var-letter">C</div>
+        <div class="var-name-cn">类目场景</div>
+        <div class="var-range">0.50 → 2.00</div>
+        <div class="bar-track" style="--w:60%"></div>
+        <div class="var-desc">说什么。17 一级类目，204 二级场景库；未成年、关系型消费、红线合规权重最高。</div>
+      </div>
+      <div class="eq-cell reveal d-2" data-w="100">
+        <div class="var-letter">T</div>
+        <div class="var-name-cn">热度系数</div>
+        <div class="var-range">0.60 → 8.00</div>
+        <div class="bar-track" style="--w:100%"></div>
+        <div class="var-desc">多少人在说。H0 热度折算 → 5 档跃迁；热搜化为 ×8，是 S 级危机的核心开关。</div>
+      </div>
+      <div class="eq-cell reveal d-3" data-w="40">
+        <div class="var-letter">K</div>
+        <div class="var-name-cn">可信度</div>
+        <div class="var-range">0.65 → 1.40</div>
+        <div class="bar-track" style="--w:40%"></div>
+        <div class="var-desc">说得多可信。造谣 → 传言 → 部分事实 → 截图录屏 → 实锤/处罚，证据链层级。</div>
+      </div>
+      <div class="eq-cell reveal d-4" data-w="72">
+        <div class="var-letter">D</div>
+        <div class="var-name-cn">扩散度</div>
+        <div class="var-range">0.80 → 2.20</div>
+        <div class="bar-track" style="--w:72%"></div>
+        <div class="var-desc">传得多远。停滞 → 平稳 → 升温 → 高涨 → 爆发（KOL/媒体/平台/热搜化）。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =============== 场景 3 :: 信源采集 =============== -->
+  <section class="scene" id="s-intake">
+    <div class="scene-tag"><span class="bracket">[</span><span class="idx">03</span><span class="bracket">/12</span><span class="bracket">]</span> <span class="tag-cn">信源采集</span></div>
+    <h2 class="scene-title reveal">四信源汇聚 · 一个热度基线 H0
+      <span class="sub">四信源以统一刻度折算为热度基础分</span>
+    </h2>
+    <p class="scene-lead reveal d-1">
+      所有外部声量被折算到同一个"热度基础分 H0"。每个信源都有等价换算率——
+      让 F 预警、豆瓣讨论、大小秘投诉、社媒发文/评论同一把秤。H0 不直接做风险值，
+      只用来决定下一步的"热度系数 T"。
+    </p>
+
+    <div class="intake-stage">
+      <div class="intake-sources reveal d-2">
+        <div class="src-row">
+          <div class="src-code">S01</div>
+          <div class="src-name">F 预警 / 内部协同</div>
+          <div class="src-rate">36.0 分 <span class="dim">/ 次</span></div>
+          <div class="src-bench">1 次 ≈ 36 分</div>
+        </div>
+        <div class="src-row">
+          <div class="src-code">S02</div>
+          <div class="src-name">豆瓣 / 粉圈舆论</div>
+          <div class="src-rate">0.18 分 <span class="dim">/ 条</span></div>
+          <div class="src-bench">200 条 ≈ 36 分</div>
+        </div>
+        <div class="src-row">
+          <div class="src-code">S03</div>
+          <div class="src-name">大小秘 / 官方投诉</div>
+          <div class="src-rate">3.0 分 <span class="dim">/ 起</span></div>
+          <div class="src-bench">12 起 ≈ 36 分</div>
+        </div>
+        <div class="src-row">
+          <div class="src-code">S04</div>
+          <div class="src-name">社媒发文 / 微博·抖音·小红书</div>
+          <div class="src-rate">7.2 分 <span class="dim">/ 篇</span></div>
+          <div class="src-bench">5 篇 ≈ 36 分</div>
+        </div>
+        <div class="src-row">
+          <div class="src-code">S05</div>
+          <div class="src-name">社媒评论 / 围观扩散</div>
+          <div class="src-rate">0.24 分 <span class="dim">/ 条</span></div>
+          <div class="src-bench">150 条 ≈ 36 分</div>
+        </div>
+      </div>
+
+      <div class="intake-readout reveal d-3">
+        <div>
+          <div class="readout-tag">热度基线 · H0</div>
+          <div class="h0"><span class="symbol">Σ</span>H0</div>
+          <div class="h0-eq">
+            H0 = <span>36 · F</span> <span class="plus">+</span> <span>0.18 · 豆瓣</span> <span class="plus">+</span><br/>
+            <span>3 · 投诉</span> <span class="plus">+</span> <span>7.2 · 发文</span> <span class="plus">+</span> <span>0.24 · 评论</span>
+          </div>
+        </div>
+        <div class="insight">
+          H0 只是把"杂音"换算到一根尺子上。<br/>
+          一次内部预警 ≈ 200 条豆瓣 ≈ 12 起投诉 ≈ 5 篇社媒发文 ≈ 150 条评论。<br/>
+          这样, 4 个本来不可比的信号, 在公式里第一次开始说同一种语言。
+        </div>
+      </div>
+    </div>
+
+    <div class="t-ladder reveal d-4">
+      <div class="ladder-title">
+        <span>T · 热度系数跃迁阶梯</span>
+        <span class="dim">5 档 · 0.6 → 8.0</span>
+      </div>
+      <div class="ladder-row">
+        <div class="lr-range">0 分 → 30 分</div>
+        <div class="lr-bar" style="--w:8%"></div>
+        <div class="lr-mult"><span class="x">×</span>0.6</div>
+        <div class="lr-desc">几乎无影响 · 压低单点噪音</div>
+      </div>
+      <div class="ladder-row">
+        <div class="lr-range">30 分 → 100 分</div>
+        <div class="lr-bar" style="--w:16%"></div>
+        <div class="lr-mult"><span class="x">×</span>1.0</div>
+        <div class="lr-desc">小范围讨论 · 基准热度档</div>
+      </div>
+      <div class="ladder-row">
+        <div class="lr-range">100 分 → 1000 分</div>
+        <div class="lr-bar" style="--w:38%"></div>
+        <div class="lr-mult"><span class="x">×</span>2.0</div>
+        <div class="lr-desc">讨论加剧 · 正式 P 事件前后</div>
+      </div>
+      <div class="ladder-row">
+        <div class="lr-range">1000 分 → 10000 分</div>
+        <div class="lr-bar" style="--w:68%"></div>
+        <div class="lr-mult"><span class="x">×</span>4.0</div>
+        <div class="lr-desc">多平台扩散 · B+ / A 抬升</div>
+      </div>
+      <div class="ladder-row">
+        <div class="lr-range">10000 分 +</div>
+        <div class="lr-bar" style="--w:100%"></div>
+        <div class="lr-mult ember"><span class="x">×</span>8.0</div>
+        <div class="lr-desc">热搜化 / 公司级外溢 · 拉开 A+ / S</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =============== 场景 4 :: S 矩阵 =============== -->
+  <section class="scene" id="s-s">
+    <div class="scene-tag"><span class="bracket">[</span><span class="idx">04</span><span class="bracket">/12</span><span class="bracket">]</span> <span class="tag-cn">S · 信源系数矩阵</span></div>
+    <h2 class="scene-title reveal">10 种组合 · 一条共振曲线
+      <span class="sub">从单源吐槽到四源齐发的共振指数</span>
+    </h2>
+    <p class="scene-lead reveal d-1">
+      四类信源排列组合出 10 个共振档位。规则不放大单点噪音，而是奖励"跨阵地共振"：
+      同一议题被 F 预警 + 豆瓣 + 投诉 + 社媒同时提到，说明它已不再是内部杂音，而是
+      会被外界放大的真实事件。
+    </p>
+
+    <div class="matrix-grid">
+      <div class="s-cell reveal"><div class="s-code">S · 0.90</div><div class="s-combo">单源 — F 预警</div><div class="s-mult">0.90 <span class="lbl">×</span></div></div>
+      <div class="s-cell reveal d-1"><div class="s-code">S · 1.00</div><div class="s-combo">单源 — 豆瓣</div><div class="s-mult">1.00 <span class="lbl">×</span></div></div>
+      <div class="s-cell reveal d-1"><div class="s-code">S · 0.95</div><div class="s-combo">单源 — 大小秘</div><div class="s-mult">0.95 <span class="lbl">×</span></div></div>
+      <div class="s-cell reveal d-2"><div class="s-code">S · 1.15</div><div class="s-combo">单源 — 社媒</div><div class="s-mult">1.15 <span class="lbl">×</span></div></div>
+      <div class="s-cell reveal d-2"><div class="s-code">S · 1.25</div><div class="s-combo">F + 豆瓣</div><div class="s-mult">1.25 <span class="lbl">×</span></div></div>
+
+      <div class="s-cell reveal d-3"><div class="s-code">S · 1.20</div><div class="s-combo">F + 大小秘</div><div class="s-mult">1.20 <span class="lbl">×</span></div></div>
+      <div class="s-cell reveal d-3"><div class="s-code">S · 1.35</div><div class="s-combo">F + 社媒</div><div class="s-mult">1.35 <span class="lbl">×</span></div></div>
+      <div class="s-cell reveal d-4"><div class="s-code">S · 1.35</div><div class="s-combo">豆瓣 + 大小秘</div><div class="s-mult">1.35 <span class="lbl">×</span></div></div>
+      <div class="s-cell reveal d-4"><div class="s-code">S · 1.45</div><div class="s-combo">豆瓣 + 社媒</div><div class="s-mult">1.45 <span class="lbl">×</span></div></div>
+      <div class="s-cell reveal d-5"><div class="s-code">S · 1.55</div><div class="s-combo">大小秘 + 社媒</div><div class="s-mult">1.55 <span class="lbl">×</span></div></div>
+
+      <div class="s-cell reveal d-5"><div class="s-code">S · 1.60</div><div class="s-combo">F + 豆瓣 + 大小秘</div><div class="s-mult">1.60 <span class="lbl">×</span></div></div>
+      <div class="s-cell reveal d-5"><div class="s-code">S · 1.70</div><div class="s-combo">F + 豆瓣 + 社媒</div><div class="s-mult">1.70 <span class="lbl">×</span></div></div>
+      <div class="s-cell reveal d-5"><div class="s-code">S · 1.75</div><div class="s-combo">F + 大小秘 + 社媒</div><div class="s-mult">1.75 <span class="lbl">×</span></div></div>
+      <div class="s-cell reveal d-5"><div class="s-code">S · 1.85</div><div class="s-combo">豆瓣 + 大小秘 + 社媒</div><div class="s-mult">1.85 <span class="lbl">×</span></div></div>
+      <div class="s-cell peak reveal d-5"><div class="s-code">S · 2.00 · 上限</div><div class="s-combo">F + 豆瓣 + 大小秘 + 社媒</div><div class="s-mult">2.00 <span class="lbl">× 上限</span></div></div>
+    </div>
+  </section>
+
+  <!-- =============== 场景 5 :: K + D =============== -->
+  <section class="scene" id="s-kd">
+    <div class="scene-tag"><span class="bracket">[</span><span class="idx">05</span><span class="bracket">/12</span><span class="bracket">]</span> <span class="tag-cn">K · 可信度 × D · 扩散度</span></div>
+    <h2 class="scene-title reveal">证据链 × 传播曲线
+      <span class="sub">事实多硬 · 火烧多远</span>
+    </h2>
+    <p class="scene-lead reveal d-1">
+      K 衡量"事实硬度"——从只有情绪输出的造谣 (0.65) 一直到平台已经处罚的实锤 (1.4)；
+      D 衡量"传播状态"——从停滞 (0.8) 跃迁到 KOL/媒体接手的爆发 (2.2)。
+      <span style="color:var(--ink);">这两个系数一起决定了同一事件 30 倍以上的风险跨度。</span>
+    </p>
+
+    <div class="kd-stage">
+      <div class="kd-col reveal d-2">
+        <h3>K · 可信度<small>5 档 · 0.65 → 1.40</small></h3>
+        <div class="kd-row">
+          <div class="kd-mult"><span class="x">×</span>0.65</div>
+          <div class="kd-label">明显造谣 / 恶意污蔑</div>
+          <div class="kd-desc">只有情绪输出 · 黑称 · 无截图无录屏；不归零, 仍保留传播压力。</div>
+        </div>
+        <div class="kd-row">
+          <div class="kd-mult"><span class="x">×</span>0.85</div>
+          <div class="kd-label">未证实传言</div>
+          <div class="kd-desc">单方爆料 · 匿名投稿 · 单方聊天记录；说法在但证据弱。</div>
+        </div>
+        <div class="kd-row">
+          <div class="kd-mult"><span class="x">×</span>1.00</div>
+          <div class="kd-label">部分事实 + 夸大</div>
+          <div class="kd-desc">默认基准档 · 有事实基础但叙事被明显放大。</div>
+        </div>
+        <div class="kd-row">
+          <div class="kd-mult"><span class="x">×</span>1.20</div>
+          <div class="kd-label">截图录屏 / 多方印证</div>
+          <div class="kd-desc">初步证据链成立 · 投诉 + 录屏 + 多平台复述。</div>
+        </div>
+        <div class="kd-row">
+          <div class="kd-mult ember"><span class="x">×</span>1.40</div>
+          <div class="kd-label">事实成立 / 平台处罚</div>
+          <div class="kd-desc">已有处罚 / 公司确认 / 实名维权；红线证据档。</div>
+        </div>
+      </div>
+
+      <div class="kd-col reveal d-3">
+        <h3>D · 扩散度<small>5 档 · 0.80 → 2.20</small></h3>
+        <div class="kd-row">
+          <div class="kd-mult"><span class="x">×</span>0.80</div>
+          <div class="kd-label">停滞</div>
+          <div class="kd-desc">6 小时无新增 · 讨论收尾；E_live 可降, E_peak 不退。</div>
+        </div>
+        <div class="kd-row">
+          <div class="kd-mult"><span class="x">×</span>1.00</div>
+          <div class="kd-label">平稳</div>
+          <div class="kd-desc">有零星新增, 无新增信源 · 基准扩散档。</div>
+        </div>
+        <div class="kd-row">
+          <div class="kd-mult"><span class="x">×</span>1.25</div>
+          <div class="kd-label">升温</div>
+          <div class="kd-desc">连续新增 · 出现二创 / 截图 / 复盘；看板升温但未必升 P。</div>
+        </div>
+        <div class="kd-row">
+          <div class="kd-mult ember"><span class="x">×</span>1.60</div>
+          <div class="kd-label">高涨</div>
+          <div class="kd-desc">跨平台扩散 · 多主体参与 · 评论区失控 · 组织化投诉；B+/A 常见触发档。</div>
+        </div>
+        <div class="kd-row">
+          <div class="kd-mult ember"><span class="x">×</span>2.20</div>
+          <div class="kd-label">爆发</div>
+          <div class="kd-desc">KOL · 媒体 · 平台 · 合作方介入 · 热搜化迹象；A+ / S 级判断。</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =============== 场景 6 :: 类目星图 =============== -->
+  <section class="scene universe" id="s-univ">
+    <div class="scene-tag"><span class="bracket">[</span><span class="idx">06</span><span class="bracket">/12</span><span class="bracket">]</span> <span class="tag-cn">17 一级类目场景库</span></div>
+    <h2 class="scene-title reveal">204 个场景 · 17 个类目
+      <span class="sub">从普通业务吐槽到公司级红线 · 一张图覆盖</span>
+    </h2>
+    <p class="scene-lead reveal d-1">
+      17 个一级类目 = 204 个二级场景 · 每个场景都预编码权重 C、预警等级 P、主责部门建议；v2026.06 修订扩充版在原 160 场景之上新增 44 个场景, 并引入全新 17 类目「咨询问询 / 流程办理」。
+      底色更深的为<span class="ember" style="font-weight:500;"> 红线类目</span>——03 未成年、04 导流欺诈、10 隐私网暴、14 公司外溢、15 红线合规——
+      命中即触发兜底升级。
+    </p>
+
+    <div class="cat-grid">
+
+      <div class="cat-cell reveal">
+        <div class="cat-head"><div class="cat-code">01</div><div class="cat-badge">P1 · P0</div></div>
+        <div class="cat-name">关系型消费 / 情感诱导风险</div>
+        <div class="cat-meta">关系叙事 · 消费转化 <span class="sep">·</span> <span class="cat-w">15 场景</span> <span class="sep">·</span> <span class="cat-w">权重 1.3 → 2.0</span></div>
+        <div class="cat-desc">暧昧票 · 榜一塌房 · 私联线下 · 关系塌房追偿 · 亲密关系 / 睡粉 / 同居争议全覆盖。</div>
+      </div>
+
+      <div class="cat-cell reveal d-1">
+        <div class="cat-head"><div class="cat-code">02</div><div class="cat-badge">P1 · P0</div></div>
+        <div class="cat-name">内容低俗 / 价值表达失范</div>
+        <div class="cat-meta">内容尺度 · 价值底线 <span class="sep">·</span> <span class="cat-w">12 场景</span> <span class="sep">·</span> <span class="cat-w">权重 1.2 → 2.0</span></div>
+        <div class="cat-desc">擦边语音 · ASMR黑话 · 辱骂粉丝 · 公共事件敏感表达；新增 ID低俗揣测、引导粉丝攻击消费者 2 条。</div>
+      </div>
+
+      <div class="cat-cell redline reveal d-1">
+        <div class="cat-head"><div class="cat-code">03</div><div class="cat-badge">P0 · 红线</div></div>
+        <div class="cat-name">未成年人 / 弱势用户保护</div>
+        <div class="cat-meta">未成年保护 · 红线 <span class="sep">·</span> <span class="cat-w">10 场景</span> <span class="sep">·</span> <span class="cat-w">权重 1.7 → 2.0</span></div>
+        <div class="cat-desc">家长退款 · 诱导未成年消费 · 进群私联 · 出镜不当 · 怀孕身体权益。命中红线兜底 2500+。</div>
+      </div>
+
+      <div class="cat-cell redline reveal d-2">
+        <div class="cat-head"><div class="cat-code">04</div><div class="cat-badge">P0 · 红线</div></div>
+        <div class="cat-name">导流 / 私域 / 交易欺诈</div>
+        <div class="cat-meta">导流欺诈 · 红线 <span class="sep">·</span> <span class="cat-w">10 场景</span> <span class="sep">·</span> <span class="cat-w">权重 1.5 → 2.0</span></div>
+        <div class="cat-desc">违规拉群 · 返利福利群 · 私下收款 · 代充刷榜 · 第三方App导流 · 线下陪伴交易。</div>
+      </div>
+
+      <div class="cat-cell reveal d-2">
+        <div class="cat-head"><div class="cat-code">05</div><div class="cat-badge">P1 · P2</div></div>
+        <div class="cat-name">PK / 厅战 / 连麦冲突</div>
+        <div class="cat-meta">厅战机制 · 消费刺激 <span class="sep">·</span> <span class="cat-w">11 场景</span> <span class="sep">·</span> <span class="cat-w">权重 1.0 → 1.6</span></div>
+        <div class="cat-desc">圈米强压消费 · 惩罚过激 · 拉票刷屏 · PK恶剪 · 跨厅嘲讽；新增 PK拉踩跨主播粉丝追责。</div>
+      </div>
+
+      <div class="cat-cell reveal d-3">
+        <div class="cat-head"><div class="cat-code">06</div><div class="cat-badge">P1 · P2</div></div>
+        <div class="cat-name">赛制公平 / 资源分配 / 组织透明</div>
+        <div class="cat-meta">公平机制 · 资源透明 <span class="sep">·</span> <span class="cat-w">13 场景</span> <span class="sep">·</span> <span class="cat-w">权重 1.1 → 1.8</span></div>
+        <div class="cat-desc">内定皇族 · 朝令夕改 · 处罚双标 · 排档争议；新增评审机制调整、奖励延期兑现、大头/banner权益分配 3 条。</div>
+      </div>
+
+      <div class="cat-cell reveal d-3">
+        <div class="cat-head"><div class="cat-code">07</div><div class="cat-badge">P1 · P2</div></div>
+        <div class="cat-name">商业化 / 周边 / 线下活动权益</div>
+        <div class="cat-meta">商品物料 · 线下权益 <span class="sep">·</span> <span class="cat-w">13 场景</span> <span class="sep">·</span> <span class="cat-w">权重 1.0 → 1.8</span></div>
+        <div class="cat-desc">周边权益 · 票务 · 线下应援 · 售后；新增中奖发货查询、粉丝名保护、商务宣发滞后 3 条。</div>
+      </div>
+
+      <div class="cat-cell reveal d-4">
+        <div class="cat-head"><div class="cat-code">08</div><div class="cat-badge">P3 · P2</div></div>
+        <div class="cat-name">主播专业能力 / 内容质量口碑</div>
+        <div class="cat-meta">表演交付 · 业务能力 <span class="sep">·</span> <span class="cat-w">13 场景</span> <span class="sep">·</span> <span class="cat-w">权重 0.9 → 1.5</span></div>
+        <div class="cat-desc">唱功跑调 · 假唱代播 · 排档不稳 · 设备问题；新增考核边界咨询、二考复训追问、点歌履约争议 3 条。</div>
+      </div>
+
+      <div class="cat-cell reveal d-4">
+        <div class="cat-head"><div class="cat-code">09</div><div class="cat-badge">P1 · P0</div></div>
+        <div class="cat-name">主播人设真实性 / 诚信风险</div>
+        <div class="cat-meta">人设履历 · 诚信 <span class="sep">·</span> <span class="cat-w">14 场景</span> <span class="sep">·</span> <span class="cat-w">权重 1.4 → 2.0</span></div>
+        <div class="cat-desc">学历造假 · 婚育隐瞒 · 多段恋爱并行；新增冒充假认证、清退前缀争议、小号马甲、婚恋人设冲突 4 条。</div>
+      </div>
+
+      <div class="cat-cell redline reveal d-5">
+        <div class="cat-head"><div class="cat-code">10</div><div class="cat-badge">P0 · 红线</div></div>
+        <div class="cat-name">隐私泄露 / 网暴 / 挂人</div>
+        <div class="cat-meta">隐私边界 · 网暴 · 红线 <span class="sep">·</span> <span class="cat-w">12 场景</span> <span class="sep">·</span> <span class="cat-w">权重 1.5 → 2.0</span></div>
+        <div class="cat-desc">人肉 · 三次照片 · 挂素人 · 网暴爆料者；新增线下偷拍素人、监视消费流水 2 条。命中红线兜底 2500+。</div>
+      </div>
+
+      <div class="cat-cell reveal d-5">
+        <div class="cat-head"><div class="cat-code">11</div><div class="cat-badge">P1 · P2</div></div>
+        <div class="cat-name">侵权 / 素材 / 版权 / AI 合规</div>
+        <div class="cat-meta">知识产权 · AI 合规 <span class="sep">·</span> <span class="cat-w">13 场景</span> <span class="sep">·</span> <span class="cat-w">权重 1.1 → 1.8</span></div>
+        <div class="cat-desc">立绘抄袭 · 音频未授权 · AI标识缺失；新增蹭流、非官方开团、搬运转播、AI融图、翻唱下架 5 条。</div>
+      </div>
+
+      <div class="cat-cell reveal d-5">
+        <div class="cat-head"><div class="cat-code">12</div><div class="cat-badge">P1 · P0</div></div>
+        <div class="cat-name">公会 / 合同 / 内部管理协同</div>
+        <div class="cat-meta">公会治理 · 合同协同 <span class="sep">·</span> <span class="cat-w">17 场景</span> <span class="sep">·</span> <span class="cat-w">权重 1.2 → 1.9</span></div>
+        <div class="cat-desc">退会违约金 · 仲裁纠纷 · 前置管理失效；新增客服链路断点、处罚周期、账号归属、准入流程、排档纪律 5 条。</div>
+      </div>
+
+      <div class="cat-cell reveal d-5">
+        <div class="cat-head"><div class="cat-code">13</div><div class="cat-badge">P2 · P1</div></div>
+        <div class="cat-name">粉圈治理 / 外部攻击 / 舆论操纵</div>
+        <div class="cat-meta">粉圈治理 · 外部攻击 <span class="sep">·</span> <span class="cat-w">12 场景</span> <span class="sep">·</span> <span class="cat-w">权重 1.1 → 1.8</span></div>
+        <div class="cat-desc">黑粉对家 · 营销号 · 水军 · 组织化投诉；新增豆瓣组织化举报、恶意视频外链核验 2 条。</div>
+      </div>
+
+      <div class="cat-cell redline reveal d-5">
+        <div class="cat-head"><div class="cat-code">14</div><div class="cat-badge">P0 · 红线</div></div>
+        <div class="cat-name">公司 / 平台品牌外溢与回应</div>
+        <div class="cat-meta">公司外溢 · 品牌回应 · 红线 <span class="sep">·</span> <span class="cat-w">11 场景</span> <span class="sep">·</span> <span class="cat-w">权重 1.4 → 2.0</span></div>
+        <div class="cat-desc">官方回应翻车 · 平台处罚 · 媒体放大 · 合作方信任 · 被上升到生态治理叙事。</div>
+      </div>
+
+      <div class="cat-cell redline reveal d-5">
+        <div class="cat-head"><div class="cat-code">15</div><div class="cat-badge">P0 · 红线</div></div>
+        <div class="cat-name">红线合规 / 违法公共安全</div>
+        <div class="cat-meta">红线合规 · 公共安全 <span class="sep">·</span> <span class="cat-w">10 场景</span> <span class="sep">·</span> <span class="cat-w">权重 1.8 → 2.0</span></div>
+        <div class="cat-desc">涉诈赌博 · 色情导流 · 暴力威胁 · 监管介入；新增游戏开挂/代打黑产关联。命中即可直达 S。</div>
+      </div>
+
+      <div class="cat-cell reveal d-5">
+        <div class="cat-head"><div class="cat-code">16</div><div class="cat-badge">复核</div></div>
+        <div class="cat-name">其他 / 待判定 / 复合型</div>
+        <div class="cat-meta">复合多因 · 待判定 <span class="sep">·</span> <span class="cat-w">6 场景</span> <span class="sep">·</span> <span class="cat-w">权重 0.5 → 1.2</span></div>
+        <div class="cat-desc">无法初判主因 · 事实不足 · 重复线索 · 非舆情；新增感谢/收到类零诉求会话, 先入人工复核池。</div>
+      </div>
+
+      <div class="cat-cell reveal d-5">
+        <div class="cat-head"><div class="cat-code">17</div><div class="cat-badge">P3 · P2</div></div>
+        <div class="cat-name">咨询问询 / 身份核验 / 流程办理</div>
+        <div class="cat-meta">流程问询 · 低风险承接 <span class="sep">·</span> <span class="cat-w">12 场景</span> <span class="sep">·</span> <span class="cat-w">权重 0.5 → 1.3</span></div>
+        <div class="cat-desc">本版全新类目：身份核验 · 状态咨询 · 入口问询 · 进度追问等 12 条流程性会话；低权重承接, 避免污染高风险账本。</div>
+      </div>
+
+    </div>
+
+        <!-- 3D 场景球 -->
+        <div class="universe-orbit reveal">
+          <div class="uo-tag">204 个场景 · 立体场景库</div>
+          <div class="uo-title">在轨 204 个场景 · 旋转中可见全貌</div>
+          <div class="uo-sub">每一颗光点 = 一个二级场景 · 颜色按一级类目分群 · 红色亮点为红线类目 · 青色光环为 v2026.06 新增场景 · 拖动旋转 / 点击查看详情 / 点击右侧编号过滤</div>
+    
+          <div class="universe-stage">
+            <div class="universe-canvas-wrap">
+              <div class="uc-corner uc-tl">SPHERE · 204 SCENES</div>
+              <div class="uc-corner uc-br">FIB · AUTO ROTATE</div>
+              <canvas id="sphereCanvas"></canvas>
+              <div class="sphere-tip" id="sphereTip"></div>
+            </div>
+            <div class="universe-detail">
+              <div class="sphere-nav">
+                <span class="sphere-nav-label">场景定位 · 关键词搜索</span>
+                <div class="sphere-search-wrap">
+                  <input type="text" class="sphere-search-input" id="sphereSearch" placeholder="搜索场景 · 名称 / 定义 / 表象信号 / 编码…" autocomplete="off" />
+                  <div class="sphere-search-results" id="sphereSearchResults"></div>
+                </div>
+              </div>
+              <div class="universe-filter" id="sphereFilter"></div>
+              <div class="universe-detail-card" id="sphereDetail"></div>
+              <div class="universe-tip">搜索 / 点击光点 · 详情卡与 3D 球体同步高亮</div>
+            </div>
+          </div>
+        </div>
+  </section>
+
+  <!-- =============== 场景 7 :: DCBAS 阶梯 =============== -->
+  <section class="scene" id="s-ladder">
+    <div class="scene-tag"><span class="bracket">[</span><span class="idx">07</span><span class="bracket">/12</span><span class="bracket">]</span> <span class="tag-cn">DCBAS 分级阶梯</span></div>
+    <h2 class="scene-title reveal">D · C · B · A · S 高度阶梯
+      <span class="sub">从日常线索到公司级危机的八级跃升</span>
+    </h2>
+    <p class="scene-lead reveal d-1">
+      8 级阶梯 · 700 分是"升 P 红线"——只有越过 700 才正式入账 R/N/F/P, 否则停留在观察池。
+      2500 分进入 A- 专项预警、8000 分进入 S 危机公关。
+      每一级都预绑响应时效、主责团队、SOP 动作和上报对象。
+    </p>
+
+    <div class="dcbas-stage">
+      <div class="dcbas-row t-d reveal">
+        <div class="dc-tier" data-cn="常规线索">D</div>
+        <div class="dc-range">0 — 300<small>分值区间</small></div>
+        <div class="dc-define">日常吐槽 · 普通投诉 · 低热度单信源；不打扰业务。</div>
+        <div class="dc-sop">入线索池, 不拆 R/N/F；观察池噪音 0-20。</div>
+        <div class="dc-team">舆情组</div>
+        <div class="dc-sla">日更<small>周汇总</small></div>
+      </div>
+      <div class="dcbas-row t-c reveal d-1">
+        <div class="dc-tier" data-cn="单点事件">C</div>
+        <div class="dc-range">300 — 700<small>分值区间</small></div>
+        <div class="dc-define">有明确对象和议题, 但未明显外溢。</div>
+        <div class="dc-sop">入观察池, 标记主体/议题；12-24h 复看；观察池噪音 20-40。</div>
+        <div class="dc-team">舆情组 + 业务知情</div>
+        <div class="dc-sla">12-24H<small>持续观察</small></div>
+      </div>
+      <div class="dcbas-row t-bm reveal d-2">
+        <div class="dc-tier" data-cn="多点风险">B-</div>
+        <div class="dc-range">700 — 1500<small>升 P · 入账门槛</small></div>
+        <div class="dc-define">正式 P 事件 · 局部共振；触发首次入库。</div>
+        <div class="dc-sop">拆 R / N / F；事实核查；业务负责人介入。</div>
+        <div class="dc-team">舆情组 + 业务负责人</div>
+        <div class="dc-sla">6-12H<small>响应</small></div>
+      </div>
+      <div class="dcbas-row t-bp reveal d-2">
+        <div class="dc-tier" data-cn="高位多点">B+</div>
+        <div class="dc-range">1500 — 2500<small>分值区间</small></div>
+        <div class="dc-define">接近 A 级 · 仍处业务可控区。</div>
+        <div class="dc-sop">业务必须反馈动作；必要时同步总裁办摘要。</div>
+        <div class="dc-team">+ 总裁办摘要</div>
+        <div class="dc-sla">4-8H<small>上报</small></div>
+      </div>
+      <div class="dcbas-row t-am reveal d-3">
+        <div class="dc-tier" data-cn="专项预警">A-</div>
+        <div class="dc-range">2500 — 4000<small>红线兜底起点</small></div>
+        <div class="dc-define">已形成明显舆论压力 · 多数红线兜底进入此档。</div>
+        <div class="dc-sop">专项处置 · 准备对外口径 · 法务 / 舆情组按需介入。</div>
+        <div class="dc-team">+ 法务 + 舆情组</div>
+        <div class="dc-sla">2-4H<small>专项处置</small></div>
+      </div>
+      <div class="dcbas-row t-a reveal d-3">
+        <div class="dc-tier" data-cn="重点预警">A</div>
+        <div class="dc-range">4000 — 6000<small>分值区间</small></div>
+        <div class="dc-define">需要高层知情 · 明确收口节点和责任人。</div>
+        <div class="dc-sop">总裁办 / 业务高层知情；公告 / 法务预案启动。</div>
+        <div class="dc-team">+ 总裁办 + 业务高层</div>
+        <div class="dc-sla">1-2H<small>高层处置</small></div>
+      </div>
+      <div class="dcbas-row t-ap reveal d-4">
+        <div class="dc-tier" data-cn="高危预警">A+</div>
+        <div class="dc-range">6000 — 8000<small>缓冲档</small></div>
+        <div class="dc-define">危机预案待命 · 公告 / 律师函 / 平台沟通就位。</div>
+        <div class="dc-sop">公告、律师函、平台沟通预案待命；高频趋势复盘。</div>
+        <div class="dc-team">+ 法务 + 公关</div>
+        <div class="dc-sla">小时级<small>预案待命</small></div>
+      </div>
+      <div class="dcbas-row t-s reveal d-4">
+        <div class="dc-tier" data-cn="危机公关">S</div>
+        <div class="dc-range">8000 +<small>危机级</small></div>
+        <div class="dc-define">公司级 / 平台级 / 外部公共风险 · 一年 1-3 起。</div>
+        <div class="dc-sop">公司级响应 · 统一口径 · 平台专项沟通 / 外部法律动作。</div>
+        <div class="dc-team">总裁办牵头 · 全员协同</div>
+        <div class="dc-sla">实时<small>战时指挥</small></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =============== 场景 8 :: 红线兜底 =============== -->
+  <section class="scene" id="s-red">
+    <div class="redline-bg"></div>
+    <div class="scene-tag"><span class="bracket">[</span><span class="idx">08</span><span class="bracket">/12</span><span class="bracket">]</span> <span class="tag-cn">红线兜底</span></div>
+    <h2 class="scene-title reveal">8 条红线 · 越过常规阈值
+      <span class="sub">哪怕声量再低 · 也不允许被沉默</span>
+    </h2>
+    <p class="scene-lead reveal d-1">
+      常规规则需要 E ≥ 700 才升 P。但有 8 类事件——一旦命中, 系统按最低分强制入账。
+      <span class="ember" style="font-weight:500;">未成年人、隐私网暴、平台处罚、回应翻车、违法交易、KOL 放大、监管</span>——
+      这是规则之上的"伦理刻度"。
+    </p>
+
+    <div class="redline-stage">
+      <div class="rl-row reveal">
+        <div class="rl-num">01</div>
+        <div class="rl-trigger">未成年人风险线索 · 未实锤</div>
+        <div class="rl-floor">700<small>兜底 · B-</small></div>
+        <div class="rl-action">直接 B- 起步, 不等普通热度。<br/>
+          <span class="pill">法务</span><span class="pill">业务</span><span class="pill">公关</span><span class="pill">舆情组</span></div>
+      </div>
+      <div class="rl-row reveal d-1">
+        <div class="rl-num">02</div>
+        <div class="rl-trigger">未成年人有证据 / 家长投诉 / 转账记录</div>
+        <div class="rl-floor">2500<small>兜底 · A-</small></div>
+        <div class="rl-action">最低 A-, 升 P 并专项处置。本版 03-09 / 03-10 重点适用。<br/>
+          <span class="pill">法务</span><span class="pill">公关</span><span class="pill">舆情组</span><span class="pill">总裁办</span></div>
+      </div>
+      <div class="rl-row reveal d-1">
+        <div class="rl-num">03</div>
+        <div class="rl-trigger">隐私泄露 / 人肉 / 网暴素人</div>
+        <div class="rl-floor">2500<small>兜底 · A-</small></div>
+        <div class="rl-action">最低 A-, 直接升 P。10-09 / 10-10 重点适用。<br/>
+          <span class="pill">法务</span><span class="pill">公关</span><span class="pill">舆情组</span></div>
+      </div>
+      <div class="rl-row reveal d-2">
+        <div class="rl-num">04</div>
+        <div class="rl-trigger">平台处罚 / 封禁 / 整改要求</div>
+        <div class="rl-floor">3000<small>兜底 · A- / A</small></div>
+        <div class="rl-action">平台动作优先于自然声量。<br/>
+          <span class="pill">总裁办</span><span class="pill">业务</span><span class="pill">平台沟通</span></div>
+      </div>
+      <div class="rl-row reveal d-2">
+        <div class="rl-num">05</div>
+        <div class="rl-trigger">官方回应翻车 / 公告评论区失控</div>
+        <div class="rl-floor">3000<small>兜底 · A- / A</small></div>
+        <div class="rl-action">回应风险需关注二次传播。<br/>
+          <span class="pill">总裁办</span><span class="pill">公关</span><span class="pill">业务</span></div>
+      </div>
+      <div class="rl-row reveal d-3">
+        <div class="rl-num">06</div>
+        <div class="rl-trigger">涉诈 / 赌博 / 色情导流 / 违法交易</div>
+        <div class="rl-floor">4000<small>兜底 · A</small></div>
+        <div class="rl-action">04 / 15 类高危适用, 极高合规优先级。<br/>
+          <span class="pill">法务</span><span class="pill">公关</span><span class="pill">业务</span><span class="pill">舆情组</span></div>
+      </div>
+      <div class="rl-row reveal d-3">
+        <div class="rl-num">07</div>
+        <div class="rl-trigger">媒体 / KOL / 合作方 / 平台问询</div>
+        <div class="rl-floor">5000<small>兜底 · A / A+</small></div>
+        <div class="rl-action">可触发外部平台专项材料。<br/>
+          <span class="pill">总裁办</span><span class="pill">公关</span><span class="pill">法务</span><span class="pill">业务</span></div>
+      </div>
+      <div class="rl-row s-tier reveal d-4">
+        <div class="rl-num">08</div>
+        <div class="rl-trigger">监管 / 公共安全 / 重大价值观风险</div>
+        <div class="rl-floor">8000<small>兜底 · S · 直达</small></div>
+        <div class="rl-action">直接 S 级 · 公司级危机响应启动。<br/>
+          <span class="pill">总裁办牵头</span><span class="pill">全员协同</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =============== 场景 9 :: RNFP =============== -->
+  <section class="scene" id="s-rnfp">
+    <div class="scene-tag"><span class="bracket">[</span><span class="idx">09</span><span class="bracket">/12</span><span class="bracket">]</span> <span class="tag-cn">RNFP · 风险拆解入账机制</span></div>
+    <h2 class="scene-title reveal">P → R · N · F · 三路归因拆分
+      <span class="sub">峰值不退 · 只补差额 · 按贡献归因</span>
+    </h2>
+    <p class="scene-lead reveal d-1">
+      事件升 P 之后, P 增量按"贡献分"拆给 R (传播)、N (投诉)、F (内部协同)——
+      让事后归因不再争吵。三条规则确保账本稳定：<span style="color:var(--ink);">峰值入账</span>、<span style="color:var(--ink);">只升不降</span>、<span style="color:var(--ink);">复燃只补差额</span>。
+    </p>
+
+    <div class="rnfp-stage">
+      <div class="rnfp-diagram reveal d-2">
+        <div class="rnfp-node np-p">
+          <div class="node-letter">P</div>
+          <div class="node-name">企业外显压力</div>
+          <div class="node-from">总览作战盘视角</div>
+        </div>
+        <div class="rnfp-node np-r">
+          <div class="node-letter">R</div>
+          <div class="node-name">传播压力</div>
+          <div class="node-from">豆瓣 + 社媒</div>
+        </div>
+        <div class="rnfp-node np-n">
+          <div class="node-letter">N</div>
+          <div class="node-name">投诉压力</div>
+          <div class="node-from">大小秘 / 客诉</div>
+        </div>
+        <div class="rnfp-node np-f">
+          <div class="node-letter">F</div>
+          <div class="node-name">协同压力</div>
+          <div class="node-from">内部预警</div>
+        </div>
+
+        <svg class="rnfp-svg" viewBox="0 0 600 460" preserveAspectRatio="none">
+          <defs>
+            <marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="rgba(240,240,250,0.35)"/>
+            </marker>
+          </defs>
+          <line x1="300" y1="90" x2="100" y2="380" stroke="rgba(240,240,250,0.18)" stroke-width="1" stroke-dasharray="4 4" marker-end="url(#ar)"/>
+          <line x1="300" y1="90" x2="300" y2="370" stroke="rgba(240,240,250,0.18)" stroke-width="1" stroke-dasharray="4 4" marker-end="url(#ar)"/>
+          <line x1="300" y1="90" x2="500" y2="380" stroke="rgba(240,240,250,0.18)" stroke-width="1" stroke-dasharray="4 4" marker-end="url(#ar)"/>
+        </svg>
+        <div class="rnfp-formula rnfp-formula-r">R = ΔP × (豆瓣 + 社媒) / 总贡献</div>
+        <div class="rnfp-formula rnfp-formula-n">N = ΔP × 投诉 / 总贡献</div>
+        <div class="rnfp-formula rnfp-formula-f">F = ΔP × F预警 / 总贡献</div>
+
+        <div class="rnfp-formula-row">
+          <span class="mono">ΔP = max(0, E_peak − P_booked)</span> · 只按高水位补差额, 不重复入账<br/>
+          <span class="ink">F 主因保护：</span>管理协同类升 P 后, F 占比保底 15-20% (避免被高声量 R 完全稀释)
+        </div>
+      </div>
+
+      <div class="rnfp-rules reveal d-3">
+        <div class="rnfp-rule">
+          <div class="rr-tag mono">E_live</div>
+          <div class="rr-desc"><span class="ink">实时风险值</span> · 可升可降 · 每次采集新数据后重算 · 用于看板当前态势。</div>
+        </div>
+        <div class="rnfp-rule">
+          <div class="rr-tag mono">E_peak</div>
+          <div class="rr-desc"><span class="ink">历史峰值</span> · 只升不降 · 用于入账与分级 · 避免日常指标跳变。</div>
+        </div>
+        <div class="rnfp-rule">
+          <div class="rr-tag mono">E_booked</div>
+          <div class="rr-desc"><span class="ink">已入账值</span> · 已计入 P/R/N/F 的分值 · 后续只补差额, 不自动扣回。</div>
+        </div>
+        <div class="rnfp-rule">
+          <div class="rr-tag">观察池</div>
+          <div class="rr-desc">E_peak &lt; 700 · 不进正式 RNFP · D 级噪音 0-20, C 级 20-40 · &gt;60 趋势提醒, &gt;100 聚合复核。</div>
+        </div>
+        <div class="rnfp-rule">
+          <div class="rr-tag">复燃补账</div>
+          <div class="rr-desc">同事件再升温且 E_peak 创新高 → <span class="mono">ΔP = 新峰值 − 旧 booked</span>, 仅补差额。</div>
+        </div>
+        <div class="rnfp-rule">
+          <div class="rr-tag">周期指数</div>
+          <div class="rr-desc">日 / 周 / 月 / 季 / 年五级周期, 每个维度都有基准分 · 指数 &gt; 80 预警, &gt; 100 爆炸点。</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 观察池 + 周期承载 -->
+    <div class="pool-block reveal">
+      <div class="pool-tag">
+        <span>观察池 · RNFP 周期承载 · 容量与溢出预警</span>
+        <span class="dim">E &lt; 700 不入正式 RNFP · 进入观察池</span>
+      </div>
+
+      <div class="pool-stage">
+        <!-- 左：噪音曲线 -->
+        <div class="pool-noise">
+          <div class="ph">观察池噪音 · 单事件贡献函数</div>
+
+          <svg viewBox="0 0 700 280" class="pool-svg" preserveAspectRatio="xMidYMid meet">
+            <!-- 警戒区底色 -->
+            <rect x="50" y="24" width="630" height="88" fill="rgba(255,184,77,0.06)"/>
+            <rect x="50" y="20" width="630" height="4" fill="rgba(255,85,48,0.10)"/>
+
+            <!-- 网格线 -->
+            <line x1="50"  y1="24"  x2="680" y2="24"  stroke="rgba(255,85,48,0.45)"   stroke-dasharray="4 3"/>
+            <line x1="50"  y1="112" x2="680" y2="112" stroke="rgba(255,184,77,0.45)"  stroke-dasharray="4 3"/>
+            <line x1="50"  y1="156" x2="680" y2="156" stroke="rgba(240,240,250,0.08)" stroke-dasharray="2 4"/>
+            <line x1="50"  y1="200" x2="680" y2="200" stroke="rgba(240,240,250,0.08)" stroke-dasharray="2 4"/>
+
+            <!-- 边界 -->
+            <line x1="320" y1="20" x2="320" y2="240" stroke="rgba(240,240,250,0.18)" stroke-dasharray="3 3"/>
+            <line x1="680" y1="20" x2="680" y2="240" stroke="rgba(240,240,250,0.22)" stroke-dasharray="3 3"/>
+
+            <!-- 坐标轴 -->
+            <line x1="50" y1="20"  x2="50"  y2="240" stroke="rgba(240,240,250,0.22)"/>
+            <line x1="50" y1="240" x2="680" y2="240" stroke="rgba(240,240,250,0.22)"/>
+
+            <!-- Y 轴标注 -->
+            <text x="42" y="244" fill="rgba(240,240,250,0.55)" font-size="10" text-anchor="end" font-family="JetBrains Mono">0</text>
+            <text x="42" y="204" fill="rgba(240,240,250,0.55)" font-size="10" text-anchor="end" font-family="JetBrains Mono">20</text>
+            <text x="42" y="160" fill="rgba(240,240,250,0.55)" font-size="10" text-anchor="end" font-family="JetBrains Mono">40</text>
+            <text x="42" y="116" fill="rgba(255,184,77,0.85)" font-size="10" text-anchor="end" font-family="JetBrains Mono">60</text>
+            <text x="42" y="72"  fill="rgba(240,240,250,0.55)" font-size="10" text-anchor="end" font-family="JetBrains Mono">80</text>
+            <text x="42" y="28"  fill="rgba(255,85,48,0.85)"  font-size="10" text-anchor="end" font-family="JetBrains Mono">100</text>
+
+            <!-- X 轴标注 -->
+            <text x="50"  y="258" fill="rgba(240,240,250,0.55)" font-size="10" text-anchor="middle" font-family="JetBrains Mono">0</text>
+            <text x="320" y="258" fill="rgba(240,240,250,0.55)" font-size="10" text-anchor="middle" font-family="JetBrains Mono">300</text>
+            <text x="680" y="258" fill="rgba(240,240,250,0.55)" font-size="10" text-anchor="middle" font-family="JetBrains Mono">700 升 P</text>
+
+            <!-- 区域文字 -->
+            <text x="180" y="40" fill="rgba(240,240,250,0.4)" font-size="10" font-family="Noto Sans SC" letter-spacing="3">D 级 噪音区</text>
+            <text x="500" y="40" fill="rgba(240,240,250,0.4)" font-size="10" font-family="Noto Sans SC" letter-spacing="3">C 级 噪音区</text>
+
+            <!-- 阈值标签 -->
+            <text x="675" y="20" fill="rgba(255,85,48,0.9)"  font-size="10" text-anchor="end" font-family="Noto Sans SC" letter-spacing="2">100 · 聚合复核</text>
+            <text x="675" y="108" fill="rgba(255,184,77,0.9)" font-size="10" text-anchor="end" font-family="Noto Sans SC" letter-spacing="2">60 · 趋势提醒</text>
+
+            <!-- D 段曲线: (50,240)→(275,196)→(320,196)  noise=min(E×0.08,20) -->
+            <path d="M 50 240 L 275 196 L 320 196" stroke="rgba(240,240,250,0.85)" stroke-width="2" fill="none"/>
+            <!-- C 段曲线: (320,196)→(680,152) noise=min(20+(E-300)×0.05,40) -->
+            <path d="M 320 196 L 680 152" stroke="rgba(240,240,250,0.85)" stroke-width="2" fill="none"/>
+            <!-- 曲线下填充 -->
+            <path d="M 50 240 L 275 196 L 320 196 L 680 152 L 680 240 L 50 240 Z" fill="rgba(240,240,250,0.04)"/>
+
+            <!-- 关键点 -->
+            <circle cx="275" cy="196" r="3" fill="rgba(240,240,250,0.85)"/>
+            <circle cx="320" cy="196" r="3" fill="rgba(240,240,250,0.85)"/>
+            <circle cx="680" cy="152" r="3" fill="rgba(240,240,250,0.85)"/>
+            <text x="275" y="190" fill="rgba(240,240,250,0.55)" font-size="9" text-anchor="middle" font-family="JetBrains Mono">D 封顶 20</text>
+            <text x="630" y="148" fill="rgba(240,240,250,0.55)" font-size="9" text-anchor="middle" font-family="JetBrains Mono">C 封顶 40</text>
+
+            <!-- 轴标题 -->
+            <text x="50" y="14" fill="rgba(240,240,250,0.55)" font-size="10" font-family="Noto Sans SC" letter-spacing="2">单事件噪音 / 池累积分</text>
+            <text x="680" y="276" fill="rgba(240,240,250,0.55)" font-size="10" text-anchor="end" font-family="Noto Sans SC" letter-spacing="2">事件分 E_peak</text>
+          </svg>
+
+          <div class="pool-rules">
+            <div class="pr-row"><span class="pr-tag">D 级</span><span>E &lt; 300：噪音 = <span class="mono">min(E × 0.08, 20)</span> · 单事件最多贡献 20 分</span></div>
+            <div class="pr-row"><span class="pr-tag">C 级</span><span>300 ≤ E &lt; 700：噪音 = <span class="mono">min(20 + (E - 300) × 0.05, 40)</span> · 单事件最多 40 分</span></div>
+            <div class="pr-row"><span class="pr-tag warn">≥ 60</span><span class="warn">观察池累积分 &gt; 60 → 触发趋势提醒, 提示有线索聚合苗头</span></div>
+            <div class="pr-row"><span class="pr-tag ember">≥ 100</span><span class="ember">观察池累积分 &gt; 100 → 触发聚合型事件复核, 检查是否存在同主体 / 同议题事件聚合</span></div>
+          </div>
+        </div>
+
+        <!-- 右：周期承载矩阵 -->
+        <div class="pool-cycle">
+          <div class="ph">RNFP 周期承载基准 · 入账容量</div>
+
+          <div class="cycle-grid">
+            <div class="ch">周期</div><div class="ch">R 传播</div><div class="ch">N 投诉</div><div class="ch">F 协同</div><div class="ch">P 总览</div>
+            <div class="cl">日</div><div>700</div><div>600</div><div>500</div><div>1000</div>
+            <div class="cl">周</div><div>3500</div><div>3000</div><div>2500</div><div>5000</div>
+            <div class="cl">月</div><div>10500</div><div>9000</div><div>7500</div><div>15000</div>
+            <div class="cl">季</div><div>30000</div><div>27000</div><div>22500</div><div>45000</div>
+            <div class="cl">年</div><div>90000</div><div>81000</div><div>67500</div><div>135000</div>
+          </div>
+
+          <div class="cycle-rules">
+            <div class="cr-row"><span class="cr-tag">公式</span><span class="mono">指数 = Σ周期入账分 / 周期基准 × 100</span></div>
+            <div class="cr-row"><span class="cr-tag warn">≥ 80</span><span class="warn">周期预警 · 检查是否有聚合型事件苗头, 出具周期专项观察</span></div>
+            <div class="cr-row"><span class="cr-tag ember">≥ 100</span><span class="ember">爆炸点 · 出具异常维度专项快报, 主责负责人入场</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =============== 场景 10 :: 25 起案例 =============== -->
+  <section class="scene" id="s-cases">
+    <div class="scene-tag"><span class="bracket">[</span><span class="idx">10</span><span class="bracket">/12</span><span class="bracket">]</span> <span class="tag-cn">25 起案例 · 实证测跑</span></div>
+    <h2 class="scene-title reveal">25 起真实案例
+      <span class="sub">D5 · C5 · B5 · A5 · S5 · 全跨度验证</span>
+    </h2>
+    <p class="scene-lead reveal d-1">
+      跨 5 个等级各取 5 起代表性案例 · 在 V4 公式下回测。
+      <span style="color:var(--ink);">25/25 与目标分级一致</span> · 红线兜底成功承接低声量但高敏感的事件 (A01, A02, A03, S01, S03)。
+    </p>
+
+    <div class="cases-grid reveal" id="casesGrid"></div>
+
+    <div class="cases-stats reveal d-5">
+      <div class="stat"><div class="lbl">案例总数</div><div class="val">25</div></div>
+      <div class="stat"><div class="lbl">命中率</div><div class="val">100<span class="unit">%</span></div></div>
+      <div class="stat"><div class="lbl">红线命中</div><div class="val">8<span class="unit">/ 25</span></div></div>
+      <div class="stat"><div class="lbl">E 值跨度</div><div class="val">46 → 9856</div></div>
+      <div class="stat"><div class="lbl">S 级覆盖</div><div class="val">5<span class="unit">/ 5 红线</span></div></div>
+    </div>
+  </section>
+
+  <!-- =============== 场景 11 :: 实时演算 =============== -->
+  <section class="scene" id="s-sim">
+    <div class="scene-tag"><span class="bracket">[</span><span class="idx">11</span><span class="bracket">/12</span><span class="bracket">]</span> <span class="tag-cn">实时演算 · 动态推演</span></div>
+    <h2 class="scene-title reveal">代入真实事件 · 看分数实时跃迁
+      <span class="sub">把任意事件代入公式 · 实时看见它落在哪一级</span>
+    </h2>
+    <p class="scene-lead reveal d-1">
+      调节下方信源组合、二级场景、声量、可信度、扩散度。
+      右侧 E_peak、DCBAS 等级、入账动作、红线触发会随手指实时变化。
+      这是把<span style="color:var(--ink);">"舆情判断"</span>从经验主义变成<span style="color:var(--ink);">"工程化作业"</span>的核心入口。
+    </p>
+
+    <div class="sim-stage reveal d-2">
+      <!-- 控制面板 -->
+      <div class="sim-controls">
+        <div class="sim-group">
+          <div class="gh"><span>S · 信源组合 <small>(决定 S 系数)</small></span><small id="simS-val">S = 1.00</small></div>
+          <div class="sim-options" id="simS"></div>
+        </div>
+
+        <div class="sim-group">
+          <div class="gh"><span>声量输入 <small>(实时折算 H0)</small></span><small id="simH0">H0 = 0</small></div>
+          <div class="sim-inputs">
+            <div class="sim-input"><label>F 预警 / 次<span class="hint">×36.0 分</span></label><input type="number" min="0" data-sig="f" value="0"/></div>
+            <div class="sim-input"><label>豆瓣 / 条<span class="hint">×0.18 分</span></label><input type="number" min="0" data-sig="db" value="0"/></div>
+            <div class="sim-input"><label>大小秘 / 起<span class="hint">×3.0 分</span></label><input type="number" min="0" data-sig="xs" value="0"/></div>
+            <div class="sim-input"><label>社媒发文 / 篇<span class="hint">×7.2 分</span></label><input type="number" min="0" data-sig="sp" value="0"/></div>
+            <div class="sim-input"><label>社媒评论 / 条<span class="hint">×0.24 分</span></label><input type="number" min="0" data-sig="sc" value="0"/></div>
+            <div class="sim-input"><label>当前 T 系数<span class="hint">由 H0 决定</span></label><input type="text" id="simT" readonly value="0.6"/></div>
+          </div>
+        </div>
+
+        <div class="sim-group">
+          <div class="gh"><span>C · 一级类目 → 二级场景<small>(C 取场景权重)</small></span><small id="simC-val">C = 1.00</small></div>
+          <select class="sim-cat-select" id="simCat" aria-label="一级类目"></select>
+          <select class="sim-scn-select" id="simScn" aria-label="二级场景"></select>
+          <div class="sim-scene-readout" id="simSceneInfo"></div>
+        </div>
+
+        <div class="sim-group">
+          <div class="gh"><span>K · 可信度</span><small id="simK-val">K = 1.00</small></div>
+          <div class="sim-options" id="simK"></div>
+        </div>
+
+        <div class="sim-group">
+          <div class="gh"><span>D · 扩散度</span><small id="simD-val">D = 1.00</small></div>
+          <div class="sim-options" id="simD"></div>
+        </div>
+
+        <div class="sim-group">
+          <div class="gh"><span>红线兜底</span><small id="simRl-val">无</small></div>
+          <div class="sim-options" id="simRl"></div>
+        </div>
+      </div>
+
+      <!-- 输出面板 -->
+      <div class="sim-readout">
+        <div class="sim-e-display">
+          <div class="e-val" id="simE">0</div>
+          <div class="e-meta">
+            <span class="tier" id="simTier">D</span>
+            <span id="simTierName" class="dim-2">常规线索</span><br/>
+            <span id="simTierRange" class="dim">0 → 300</span>
+          </div>
+        </div>
+
+        <div class="sim-breakdown">
+          <div class="sim-bd"><div class="lb">S</div><div class="vl" id="bdS">1.00</div></div>
+          <div class="sim-bd"><div class="lb">C</div><div class="vl" id="bdC">1.00</div></div>
+          <div class="sim-bd"><div class="lb">T</div><div class="vl" id="bdT">0.6</div></div>
+          <div class="sim-bd"><div class="lb">K</div><div class="vl" id="bdK">1.00</div></div>
+          <div class="sim-bd"><div class="lb">D</div><div class="vl" id="bdD">1.00</div></div>
+        </div>
+
+        <div class="sim-sop">
+          <div class="sop-h">
+            <span>SOP 建议</span>
+            <span class="badge" id="simBadge">D · 常规线索</span>
+          </div>
+          <div id="simSop" class="cn">事件落在观察池 / 线索池 · 不打扰业务, 舆情组日常归并。当 E 越过 700 即升 P 并自动拆 R / N / F。</div>
+          <div class="sim-redline-on" id="simRedline" style="display:none;">⚠ 红线兜底已触发 · 强制最低分入账</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =============== 场景 12 :: 系统就绪 =============== -->
+  <section class="scene outro" id="s-outro">
+    <div class="mission-tag reveal">
+      <span class="dash"></span>
+      <span>系统就绪</span>
+      <span class="dash"></span>
+    </div>
+    <h2 class="reveal d-1">一把尺　一本账　一个事实</h2>
+
+    <div class="principles reveal d-2">
+      <div class="principle">
+        <div class="pn">·· 01 ··</div>
+        <div class="pt">统一刻度</div>
+        <div class="pd">所有事件用同一公式打分。从 D 级吐槽到 S 级危机, 在同一根尺子上比较。</div>
+      </div>
+      <div class="principle">
+        <div class="pn">·· 02 ··</div>
+        <div class="pt">峰值入账</div>
+        <div class="pd">P / R / N / F 只升不降 · 复燃只补差额 · 看板可以降温, 账本永不漂移。</div>
+      </div>
+      <div class="principle">
+        <div class="pn">·· 03 ··</div>
+        <div class="pt">红线兜底</div>
+        <div class="pd">8 条红线在算法之上保留人类伦理判断 · 哪怕低声量, 也能强制升级。</div>
+      </div>
+      <div class="principle">
+        <div class="pn">·· 04 ··</div>
+        <div class="pt">归因可拆</div>
+        <div class="pd">R 传播 · N 投诉 · F 协同 — 每一分都能追溯到信源, 让事后复盘没有罗生门。</div>
+      </div>
+    </div>
+
+    <a href="#s-sim" class="ghost reveal d-3">打开实时演算 <span class="arr">→</span></a>
+    <div class="signoff reveal d-4" style="margin-top:48px;">演示结束 · 听潮阁 / 舆情系统 V4.1 · 修订扩充版 2026.06</div>
+  </section>
+
+</main>
+
+<footer class="bottom">
+  <span>听潮阁舆情整合系统 · V4.1 · 204 个场景规则</span>
+  <span class="mono">E = 100 · S · C · T · K · D</span>
+  <span>结束</span>
+</footer>
+
+<script>
+/* ==================================================================
+   听潮阁 / 舆情作战甲板  --  客户端逻辑
+   ================================================================== */
+
+/* ----------- 星粒子背景 ----------- */
+(function(){
+  const c = document.getElementById('starbg');
+  const ctx = c.getContext('2d');
+  let w, h, stars=[];
+  function resize(){
+    w = c.width = window.innerWidth * devicePixelRatio;
+    h = c.height = window.innerHeight * devicePixelRatio;
+    c.style.width = window.innerWidth+'px';
+    c.style.height = window.innerHeight+'px';
+  }
+  function init(){
+    stars=[];
+    const n = Math.floor((window.innerWidth*window.innerHeight)/9000);
+    for(let i=0;i<n;i++){
+      stars.push({
+        x: Math.random()*w,
+        y: Math.random()*h,
+        r: Math.random()*1.1 + 0.2,
+        a: Math.random()*0.6 + 0.1,
+        s: Math.random()*0.4 + 0.05,
+        ph: Math.random()*Math.PI*2,
+      });
+    }
+  }
+  function tick(t){
+    ctx.clearRect(0,0,w,h);
+    for(const s of stars){
+      const alpha = (Math.sin(t*0.0008 + s.ph)+1)*0.5 * s.a + 0.06;
+      ctx.fillStyle = `rgba(240,240,250,${alpha})`;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r*devicePixelRatio, 0, Math.PI*2);
+      ctx.fill();
+      s.y += s.s * devicePixelRatio;
+      if(s.y > h+4){ s.y = -4; s.x = Math.random()*w; }
+    }
+    requestAnimationFrame(tick);
+  }
+  resize(); init();
+  window.addEventListener('resize',()=>{resize();init();});
+  requestAnimationFrame(tick);
+})();
+
+/* ----------- 滚动入场动画 ----------- */
+(function(){
+  const items = document.querySelectorAll('.reveal');
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{
+      if(e.isIntersecting){
+        e.target.classList.add('in');
+      }
+    });
+  },{threshold:0.12, rootMargin:'0px 0px -10% 0px'});
+  items.forEach(it=>io.observe(it));
+})();
+
+/* ----------- 公式条进度条 ----------- */
+(function(){
+  const cells = document.querySelectorAll('.eq-cell');
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{
+      if(e.isIntersecting){ e.target.classList.add('in'); }
+    });
+  },{threshold:0.2});
+  cells.forEach(c=>io.observe(c));
+})();
+
+/* ----------- 侧边导航激活态 ----------- */
+(function(){
+  const links = document.querySelectorAll('.side-rail a');
+  const map = {};
+  links.forEach(a=>map[a.dataset.target] = a);
+  const sections = document.querySelectorAll('section.scene');
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{
+      if(e.isIntersecting){
+        links.forEach(a=>a.classList.remove('active'));
+        const id = e.target.id;
+        if(map[id]) map[id].classList.add('active');
+      }
+    });
+  },{threshold:0.4});
+  sections.forEach(s=>io.observe(s));
+})();
+
+/* ==================================================================
+   全局共享数据 (类目/场景/选项/案例)
+   ================================================================== */
+
+const S_OPTIONS = [
+  {k:'F',          v:0.90, lbl:'F 预警'},
+  {k:'豆瓣',       v:1.00, lbl:'豆瓣'},
+  {k:'大小秘',     v:0.95, lbl:'大小秘'},
+  {k:'社媒',       v:1.15, lbl:'社媒'},
+  {k:'F+豆瓣',     v:1.25, lbl:'F + 豆瓣'},
+  {k:'F+大小秘',   v:1.20, lbl:'F + 大小秘'},
+  {k:'F+社媒',     v:1.35, lbl:'F + 社媒'},
+  {k:'豆瓣+大小秘',v:1.35, lbl:'豆瓣 + 大小秘'},
+  {k:'豆瓣+社媒',  v:1.45, lbl:'豆瓣 + 社媒'},
+  {k:'大小秘+社媒',v:1.55, lbl:'大小秘 + 社媒'},
+  {k:'F+豆瓣+大小秘', v:1.60, lbl:'F + 豆瓣 + 大小秘'},
+  {k:'F+豆瓣+社媒',   v:1.70, lbl:'F + 豆瓣 + 社媒'},
+  {k:'F+大小秘+社媒', v:1.75, lbl:'F + 大小秘 + 社媒'},
+  {k:'豆瓣+大小秘+社媒', v:1.85, lbl:'豆瓣 + 大小秘 + 社媒'},
+  {k:'四源齐发',    v:2.00, lbl:'F + 豆瓣 + 大小秘 + 社媒 (上限)'},
+];
+const K_OPTIONS = [
+  {v:0.65, lbl:'造谣'},
+  {v:0.85, lbl:'传言'},
+  {v:1.00, lbl:'部分事实'},
+  {v:1.20, lbl:'截图录屏'},
+  {v:1.40, lbl:'实锤 / 处罚'},
+];
+const D_OPTIONS = [
+  {v:0.80, lbl:'停滞'},
+  {v:1.00, lbl:'平稳'},
+  {v:1.25, lbl:'升温'},
+  {v:1.60, lbl:'高涨'},
+  {v:2.20, lbl:'爆发'},
+];
+const CAT_OPTIONS = [
+  {code:'01', name:'关系型消费 / 情感诱导风险'},
+  {code:'02', name:'内容低俗 / 价值表达失范'},
+  {code:'03', name:'未成年人 / 弱势用户保护'},
+  {code:'04', name:'导流 / 私域 / 交易欺诈'},
+  {code:'05', name:'PK / 厅战 / 连麦冲突'},
+  {code:'06', name:'赛制公平 / 资源分配 / 组织透明'},
+  {code:'07', name:'商业化 / 周边 / 线下活动权益'},
+  {code:'08', name:'主播专业能力 / 内容质量口碑'},
+  {code:'09', name:'主播人设真实性 / 诚信风险'},
+  {code:'10', name:'隐私泄露 / 网暴 / 挂人'},
+  {code:'11', name:'侵权 / 素材 / 版权 / AI 合规'},
+  {code:'12', name:'公会 / 合同 / 内部管理协同'},
+  {code:'13', name:'粉圈治理 / 外部攻击 / 舆论操纵'},
+  {code:'14', name:'公司 / 平台品牌外溢与回应'},
+  {code:'15', name:'红线合规 / 违法公共安全'},
+  {code:'16', name:'其他 / 待判定 / 复合型'},
+  {code:'17', name:'咨询问询 / 身份核验 / 流程办理'},
+];
+const REDLINE_CATS = ['03','04','10','14','15'];
+
+// 二级场景库（204条）— 与 v2026.06 修订扩充表完全对齐，C = 场景权重，p = 预警等级，m = 主责建议，g = 场景定义，h = 表象信号，x = 本版新增
+const SCENE_DB = {
+    "01":[{c:"01-01",n:"暧昧/恋爱式承诺诱导打赏",w:1.9,p:"P0/P1",m:"业务+公关+法务",g:"出现恋爱、专属、见面、陪伴承诺与礼物/榜单强绑定",h:"恋爱、专属、只对你、见面、陪你、上票后回应"},{c:"01-02",n:"暧昧票/关系票/专属票争议",w:1.7,p:"P1",m:"业务+舆情组",g:"粉丝认为消费购买的是特殊关系、特殊权益或主播偏爱",h:"暧昧票、关系票、专属票、养鱼、吊着"},{c:"01-03",n:"榜一/大姐/守护关系塌房",w:1.8,p:"P1",m:"业务+客服",g:"高消费用户被冷落、被替代或发现多人并行维护",h:"榜一破防、大哥被割、守护白花了、端水不平"},{c:"01-04",n:"CP营业/卖腐/强行捆绑争议",w:1.2,p:"P2/P1",m:"舆情组+厅管",g:"CP粉与唯粉围绕营业强度、解绑、资源分配互撕",h:"卖腐、硬麦、拆CP、解绑、避嫌、工业糖精"},{c:"01-05",n:"CP一方资源倾斜/解绑反噬",w:1.2,p:"P2/P1",m:"业务+公关",g:"CP一方获得活动、商务、头部合作，引发另一方粉丝不满",h:"吸血、倒贴、扶贫、解绑、资源咖"},{c:"01-06",n:"私联/线下见面承诺引发情感维权",w:1.8,p:"P0/P1",m:"法务+业务",g:"聊天记录、线下邀约、私下承诺被曝光",h:"加微信、私聊、线下见、单独约、私联"},{c:"01-07",n:"卖惨/冷处理/情感PUA逼单",w:1.8,p:"P0/P1",m:"业务+风控",g:"通过生病、退圈、被欺负、失望等情绪压迫粉丝消费",h:"不刷就退、没人疼、你们让我失望、卖惨要票"},{c:"01-08",n:"关系塌房后的退款/礼物追偿",w:2,p:"P0",m:"法务+客服+公关",g:"用户认为礼物基于虚假关系赠送，要求退款或公开道歉",h:"骗感情、骗钱、还礼物、退款、诈骗"},{c:"01-09",n:"多粉并行维护/养鱼截图曝光",w:1.8,p:"P1",m:"业务+舆情组",g:"多个粉丝/大姐晒出相似私聊、承诺、称呼或转账痕迹",h:"海王、养鱼、话术模板、多人同款、时间管理"},{c:"01-10",n:"粉丝身份竞争引发内讧",w:1.3,p:"P2/P1",m:"厅管+舆情组",g:"厅管、粉头、大粉、榜单用户之间争夺话语权和主播偏爱",h:"大粉霸凌、厅管偏心、榜一压人、粉头带节奏"},{c:"01-11",n:"主播与高消费粉丝现实恋爱纠纷",w:1.9,p:"P0/P1",m:"法务+业务+公关",g:"主播与榜一、大姐、守护粉丝从线上暧昧、消费关系升级为现实恋爱，后续因分手、冷处理、消费追偿、公开爆料引发舆情",h:"大姐、榜一、恋爱、睡粉、私下在一起、谈了、分手、骗感情",x:1},{c:"01-12",n:"现实亲密关系导致怀孕/流产/堕胎纠纷",w:2,p:"P0",m:"法务+公关+业务+风控",g:"主播与粉丝发生现实亲密关系后，出现怀孕、流产、堕胎、补偿、陪同就医、责任划分等争议，被当事人或第三方曝光",h:"怀孕、打胎、堕胎、流产、医院、检查单、补偿、负责、睡粉",x:1},{c:"01-13",n:"亲密关系补偿/封口费/私下和解争议",w:1.95,p:"P0/P1",m:"法务+公关+业务",g:"恋爱、亲密关系、怀孕流产等事件后，出现私下补偿、转账、封口、删帖、签协议等争议",h:"封口费、补偿、私了、删帖、协议、转账、别闹大",x:1},{c:"01-14",n:"睡粉/亲密接触指控",w:1.95,p:"P0/P1",m:"法务+风控+业务+公关",g:"主播被指与粉丝、榜单用户、厅内用户发生现实亲密接触，且与消费、排档、资源、榜单维护存在关联",h:"睡粉、约粉、开房、线下见、陪睡、亲密接触",x:1},{c:"01-15",n:"高消费粉丝被诱导现实见面/同居争议",w:1.85,p:"P1/P0",m:"业务+法务+公关",g:"大姐、榜一、守护粉丝被主播以恋爱、陪伴、未来承诺等方式引导线下见面、旅行、同住、陪伴，并与消费绑定",h:"同居、见面、旅行、酒店、陪伴、以后在一起、线下奔现",x:1}],
+    "02":[{c:"02-01",n:"低俗擦边/涉黄语音暗示",w:1.9,p:"P0/P1",m:"风控+业务",g:"语音、语气、台词、音效制造性暗示或不雅联想",h:"擦边、开黄腔、软色情、黄色玩笑、暧昧音效"},{c:"02-02",n:"ASMR/方言/黑话规避审核",w:1.8,p:"P1",m:"风控+舆情组",g:"用方言、谐音、隐语、ASMR包装低俗话术",h:"ASMR、方言、暗号、隐语、懂的都懂"},{c:"02-03",n:"辱骂粉丝/阴阳怪气/攻击用户",w:1.5,p:"P1/P2",m:"业务+厅管",g:"主播公开骂粉、阴阳、嘲讽低消费或脱粉用户",h:"骂粉、阴阳、破防、嘴粉、穷粉"},{c:"02-04",n:"性别/地域/职业/疾病等歧视玩梗",w:1.8,p:"P1",m:"公关+业务",g:"对群体身份、灾难、疾病、职业作冒犯表达",h:"地图炮、歧视、玩梗过界、拿灾难开玩笑"},{c:"02-05",n:"直播情绪失控/酒后失态",w:1.6,p:"P1/P2",m:"业务+人事/培训",g:"主播醉酒、哭闹、摔麦、失控输出攻击性言论",h:"喝多了、发疯、破防、酒后、崩溃"},{c:"02-06",n:"公开对同事/管理开火",w:1.5,p:"P1/P2",m:"厅管+人事+公关",g:"主播在直播间指责同事、厅管、公会安排",h:"撕同事、骂厅管、开团公司、内涵管理"},{c:"02-07",n:"涉违法/暴力/诈骗等高危言论",w:2,p:"P0",m:"法务+风控",g:"提及违法牟利、暴力威胁、诈骗教程、赌博等内容",h:"诈骗、赌博、威胁、弄死、贷款、高利贷"},{c:"02-08",n:"公共事件/政治宗教民族敏感表达",w:2,p:"P0",m:"公关+法务",g:"对公共事件、民族宗教、政治类内容发表不当言论",h:"辱国、政治、民族、宗教、国难财"},{c:"02-09",n:"直播挂机/睡觉/敷衍营业",w:1.2,p:"P3/P2",m:"厅管",g:"上档睡觉、挂机、做作业、长期无有效互动",h:"睡档、挂机、摆烂、写作业、混时长"},{c:"02-10",n:"内容边界被粉丝二创放大",w:1.4,p:"P2/P1",m:"舆情组+业务",g:"原话不严重但被剪辑、配字幕、二创后形成低俗/冒犯感",h:"恶剪、二创、字幕带节奏、断章取义"},{c:"02-11",n:"用户ID/粉丝身份被低俗揣测",w:1.55,p:"P1/P2",m:"业务+厅管",g:"主播或管理在直播间围绕用户ID、粉丝身份、性别、年龄等进行低俗联想、调侃或带节奏",h:"ID、名字、低俗猜测、开黄腔、当众调侃、被点名",x:1},{c:"02-12",n:"直播间引导粉丝攻击消费者",w:1.75,p:"P1",m:"业务+舆情组",g:"主播或管理通过话术暗示、点名、阴阳方式引导粉丝围攻消费者、投诉人或路人",h:"引导网暴、让粉丝骂、阴阳消费者、贴脸、挂人",x:1}],
+    "03":[{c:"03-01",n:"未成年人打赏/家长退款",w:2,p:"P0",m:"客服+法务+风控",g:"家长投诉、未成年身份线索、消费金额异常",h:"孩子打赏、家长退款、未成年消费、学生党"},{c:"03-02",n:"主播诱导未成年人上票/充值",w:2,p:"P0",m:"风控+业务",g:"主播明知或应知用户未成年仍刺激消费",h:"学生也能刷、别让爸妈知道、借号充值"},{c:"03-03",n:"未成年人进群/私联/线下接触",w:2,p:"P0",m:"法务+业务",g:"未成年被引导进粉丝群、私聊或线下见面",h:"小孩进群、未成年私联、线下见、家长报警"},{c:"03-04",n:"未成年出镜/语音互动不当",w:1.9,p:"P0/P1",m:"风控+厅管",g:"直播间出现未成年人语音、照片、身份曝光或不当互动",h:"小朋友上麦、童声、未成年照片、开黄腔对象"},{c:"03-05",n:"学生粉过度消费/借贷打赏",w:1.8,p:"P1",m:"客服+业务",g:"用户自称学生、借钱、花生活费打赏",h:"生活费、借钱刷、花呗、贷款、学生党"},{c:"03-06",n:"心理脆弱用户被关系绑定",w:1.8,p:"P1/P0",m:"客服+业务+安全",g:"孤独、抑郁、失恋等用户对主播形成强依赖后维权",h:"陪伴依赖、精神寄托、崩溃、自残威胁"},{c:"03-07",n:"未成年身份被粉圈攻击",w:1.8,p:"P1",m:"舆情组+法务",g:"未成年粉丝在互撕中被挂个人信息或羞辱",h:"小孩粉、挂未成年、家长、学校"},{c:"03-08",n:"未成年人保护口径回应不当",w:1.9,p:"P0/P1",m:"公关+法务",g:"官方回应未体现保护优先、推责或措辞冷漠",h:"甩锅、让家长自证、冷处理、未成年不管"},{c:"03-09",n:"未成年粉丝恋爱/私联/亲密关系风险",w:2,p:"P0",m:"法务+风控+公关+业务",g:"涉事粉丝为未成年人，主播存在私联、恋爱承诺、线下见面、亲密暗示、诱导消费等行为",h:"未成年、学生、家长、私联、见面、谈恋爱、打赏",x:1},{c:"03-10",n:"未成年粉丝怀孕/身体权益争议",w:2,p:"P0",m:"法务+公关+风控+总裁办",g:"如当事人为未成年人，涉及怀孕、流产、堕胎、线下接触等指控，无论声量大小均应按红线事件处理",h:"未成年、怀孕、医院、家长、报警、平台投诉",x:1}],
+    "04":[{c:"04-01",n:"违规拉群/加微信/小号导流",w:1.7,p:"P1/P0",m:"风控+业务",g:"主播或粉头引导粉丝去站外群、小号或私聊",h:"加微、进群、私聊、看主页、另一个号"},{c:"04-02",n:"返利/福利群/红包诱导",w:2,p:"P0",m:"法务+风控",g:"以返利、福利、红包、补贴吸引用户站外交易",h:"返利、福利群、红包、任务、返钱"},{c:"04-03",n:"私下收款/借钱/红包往来",w:1.9,p:"P0/P1",m:"法务+业务",g:"主播直接收红包、借钱不还、私下售卖服务",h:"借钱、红包、转账、私收、还钱"},{c:"04-04",n:"代充/代刷/刷榜黑产",w:1.8,p:"P1/P0",m:"风控+业务",g:"涉及代充、刷礼物、刷票、刷榜、账号交易",h:"代充、刷票、刷榜、上分、黑产"},{c:"04-05",n:"第三方App/下载链接导流",w:1.9,p:"P0/P1",m:"风控+法务",g:"引导下载其他App、进外部平台消费或聊天",h:"下载App、链接、外站、邀请码"},{c:"04-06",n:"粉头/厅管代运营收费",w:1.6,p:"P1/P2",m:"厅管+客服",g:"非官方人员以主播名义收钱、代购权益或承诺互动",h:"厅管收钱、粉头代办、代点歌、包过"},{c:"04-07",n:"线下见面/陪玩/陪聊交易",w:2,p:"P0",m:"法务+风控",g:"承诺线下陪伴、陪玩、陪聊、定制服务并收款",h:"线下、包场、陪玩、陪聊、定制"},{c:"04-08",n:"主播个人信息泄露/账号安全问题",w:1.8,p:"P1/P0",m:"法务+信息安全",g:"站外群或交易导致主播手机号、微信、地址、订单等泄露",h:"手机号、微信号、地址、账号被盗、信息泄露"},{c:"04-09",n:"恋爱关系中的私下借钱/转账/经济往来",w:1.95,p:"P0/P1",m:"法务+业务+客服",g:"主播以恋爱、陪伴、困难、未来承诺等理由向粉丝借钱、收红包、收转账或引导站外经济往来",h:"借钱、红包、转账、还钱、恋爱期间花费、共同开销",x:1},{c:"04-10",n:"以恋爱/见面为名的站外消费诱导",w:1.9,p:"P0/P1",m:"法务+风控+业务",g:"主播以见面、恋爱、私下陪伴、线下安排为诱因，引导粉丝站外消费、转账、订房、礼品、车费等",h:"见面费、车费、酒店、红包、线下花费、请吃饭",x:1}],
+    "05":[{c:"05-01",n:"PK圈米/强压消费",w:1.7,p:"P1/P0",m:"业务+风控",g:"主播、主持或粉丝用话术强迫上票、刷礼物",h:"不上票没脸、冲一冲、逼票、圈米"},{c:"05-02",n:"PK惩罚过激/不适当",w:1.5,p:"P1",m:"业务+厅管",g:"惩罚内容低俗、羞辱、危险或不符合平台规范",h:"惩罚过了、羞辱、擦边惩罚、危险动作"},{c:"05-03",n:"PK输赢引发粉丝骂战",w:1.2,p:"P2/P1",m:"舆情组+厅管",g:"双方粉丝围绕输赢、偷塔、拉票、守护互喷",h:"偷塔、破防、输不起、对家粉"},{c:"05-04",n:"跨厅PK嘲讽/带节奏",w:1.4,p:"P1/P2",m:"业务+公关",g:"主播或主持攻击对方厅、对方主播或粉丝",h:"嘲讽对家、拉踩、跨厅开团、阴阳"},{c:"05-05",n:"连麦控场差/抢麦/冷场",w:1,p:"P3/P2",m:"厅管+培训",g:"连麦秩序混乱、抢麦、主持失控、冷场被嘲",h:"抢麦、控不住、冷场、插话、主持废"},{c:"05-06",n:"拒做惩罚/规则执行不一致",w:1.3,p:"P2",m:"业务+舆情组",g:"输了不罚、临时改惩罚、强行解释",h:"不认输、不做惩罚、改规则、双标"},{c:"05-07",n:"拉票刷屏/控评影响观感",w:1.2,p:"P2/P3",m:"业务+风控",g:"评论区被拉票、控评、刷屏挤占正常讨论",h:"刷屏、控评、拉票、机器人"},{c:"05-08",n:"PK恶剪/二创二次传播",w:1.3,p:"P2/P1",m:"舆情组",g:"PK中的言论被剪辑成冲突、低俗或失礼内容",h:"恶剪、切片、断章取义、二创"},{c:"05-09",n:"PK引发群体举报/抵制",w:1.5,p:"P1",m:"业务+客服",g:"输赢后粉丝组织投诉、举报对方或抵制活动",h:"举报、抵制、投诉、别参加"},{c:"05-10",n:"厅战资源抢夺/战术争议",w:1.4,p:"P1/P2",m:"业务+公关",g:"厅战中多个厅/主播围绕资源、支援、战术分配冲突",h:"抢资源、支援不公、打压、战术黑幕"},{c:"05-11",n:"PK拉踩引发跨主播粉丝追责",w:1.35,p:"P2/P1",m:"厅管+舆情组",g:"PK或连麦过程中出现拉踩、嘲讽、比较业务能力等，引发双方粉丝互骂并要求公司处理",h:"PK拉踩、对家粉骂、跨厅骂战、业务水平比较",x:1}],
+    "06":[{c:"06-01",n:"赛制不公平/内定/皇族",w:1.6,p:"P1",m:"业务+公关",g:"质疑结果提前安排、特定主播被保送",h:"内定、皇族、剧本、保送、黑幕"},{c:"06-02",n:"临时改规则/口径前后不一",w:1.7,p:"P1",m:"业务+舆情组",g:"活动过程中规则变更或解释矛盾",h:"改规则、朝令夕改、口径不一、临时通知"},{c:"06-03",n:"榜单数据异常/刷票质疑",w:1.6,p:"P1",m:"数据+业务",g:"榜单波动不合理、数据缺失、增长曲线异常",h:"刷票、数据不对、榜单异常、偷票"},{c:"06-04",n:"评审/考核专业性被质疑",w:1.4,p:"P2/P1",m:"业务+培训",g:"评委标准不明、点评不专业、结果与表现不匹配",h:"评审水、考核放水、标准呢、黑幕"},{c:"06-05",n:"曝光/活动/商务资源分配不均",w:1.5,p:"P1/P2",m:"业务+公关",g:"粉丝认为某主播过度或长期缺少曝光资源",h:"资源咖、没资源、偏心、冷宫、喂饭"},{c:"06-06",n:"排档/时段/轮转不公",w:1.3,p:"P2",m:"厅管",g:"黄金时段、排档顺序、轮换机会被质疑",h:"排档不公、黄金档、压档、不给机会"},{c:"06-07",n:"处罚尺度不一致",w:1.8,p:"P1",m:"公关+法务+业务",g:"相似违规不同处理，或处罚过轻/过重",h:"双标、偏袒、罚轻了、罚重了、包庇"},{c:"06-08",n:"晋级/淘汰依据不透明",w:1.5,p:"P2/P1",m:"业务+舆情组",g:"晋级、淘汰、入选名单没有清晰依据",h:"凭什么晋级、淘汰黑幕、名单不服"},{c:"06-09",n:"跨厅联合活动公平性质疑",w:1.5,p:"P1/P2",m:"业务负责人",g:"多个厅参与时规则、资源、主持、流量不均",h:"跨厅不公、偏某厅、陪跑、联合黑幕"},{c:"06-10",n:"规则解释缺失导致二次发酵",w:1.7,p:"P1",m:"公关+舆情组",g:"初始争议可控，但官方未及时解释或解释不完整",h:"装死、没解释、避重就轻、公告没用"},{c:"06-11",n:"大众评审/考核机制调整争议",w:1.25,p:"P2/P1",m:"业务+公关",g:"考核、比赛或评审拟引入大众投票/评选后，用户质疑专业性、公平性、控场能力",h:"大众评审、考官、专业性、公平、考核机制",x:1},{c:"06-12",n:"奖励/资源承诺延期兑现",w:1.55,p:"P1/P2",m:"业务+公关",g:"活动、比赛或榜单承诺的奖励、资源、作品、团综、单曲、商务等未按预期落地",h:"奖励未兑现、资源延期、承诺没落地、活动被替换",x:1},{c:"06-13",n:"大头/banner/镜头/站位权益分配争议",w:1.35,p:"P2/P1",m:"业务+内容团队",g:"作品、banner、立绘、镜头、站位等权益呈现与粉丝贡献、排名或预期不一致",h:"大头、banner、镜头少、站位、C位、立绘",x:1}],
+    "07":[{c:"07-01",n:"周边定价过高/被指割粉",w:1.3,p:"P2/P1",m:"商务+公关",g:"粉丝认为价格、套餐、抽选机制不合理",h:"割粉、圈钱、太贵、韭菜、氪金"},{c:"07-02",n:"品控翻车/瑕疵集中吐槽",w:1.5,p:"P1/P2",m:"商务+客服",g:"周边质量、印刷、材质、损坏、色差问题集中",h:"瑕疵、翻车、品控差、诈骗周边"},{c:"07-03",n:"发货慢/漏发/补发争议",w:1.3,p:"P2/P1",m:"商务+客服",g:"长期未发货、错发、漏发、补发不及时",h:"不发货、漏发、拖、补发、客服不回"},{c:"07-04",n:"设计/立绘/物料被嘲敷衍",w:1.2,p:"P2",m:"商务+设计",g:"粉丝认为视觉、标题、物料错误或不尊重主播",h:"敷衍、难看、错字、站位、P图"},{c:"07-05",n:"联名人选/站位/权益排序争议",w:1.5,p:"P1/P2",m:"商务+公关",g:"谁入选、谁站C位、谁权益多引发不满",h:"站位、入选、C位、陪跑、资源咖"},{c:"07-06",n:"周边权益规则不清",w:1.4,p:"P2/P1",m:"商务+客服",g:"券、满减、兑换、抽选、权益说明前后不一",h:"规则看不懂、权益缩水、兑换失败、概率不明"},{c:"07-07",n:"售后响应慢/客服态度被骂",w:1.6,p:"P1",m:"客服+公关",g:"客服慢、机器人回复、踢皮球、不解决",h:"客服装死、态度差、踢皮球、售后无门"},{c:"07-08",n:"黄牛/代领/倒卖/盗版周边",w:1.5,p:"P1/P2",m:"商务+风控",g:"抢购、代领、黄牛价、盗版周边混入",h:"黄牛、倒卖、代领、盗版、二道贩子"},{c:"07-09",n:"线下活动/应援点位争议",w:1.8,p:"P1/P0",m:"商务+公关+业务",g:"音乐节、见面会、红毯等线下资源和应援点位争夺",h:"应援点位、抢点、主办方、线下、音乐节"},{c:"07-10",n:"线下票务/入场/秩序/安全问题",w:1.8,p:"P1/P0",m:"商务+行政+公关",g:"门票、入场、排队、现场秩序、安全事件争议",h:"票务、入场、排队、挤、安保、现场乱"},{c:"07-11",n:"中奖/签名/奖品发货查询",w:1,p:"P3/P2",m:"客服+活动运营",g:"用户围绕直播、线下活动、抽奖、签名物料、伴手礼等发货进度进行咨询或投诉",h:"中奖、签名、未发货、伴手礼、快递、补领",x:1},{c:"07-12",n:"粉丝名/应援名/权益命名保护争议",w:1.15,p:"P2/P3",m:"业务+粉运",g:"粉丝名、应援名、灯牌名、粉丝团名称等被其他主播或账号使用，用户要求保护权益",h:"粉丝名、应援名、小薯条、被占用、命名保护",x:1},{c:"07-13",n:"商务露出/小程序宣发更新滞后",w:1.1,p:"P3/P2",m:"市场+业务",g:"商务合作、线下活动或小程序页面的主播露出、物料、宣发信息未及时更新或遗漏",h:"商务图、曼妥思、小程序、宣发滞后、未更新",x:1}],
+    "08":[{c:"08-01",n:"唱功跑调/破音/音准节奏问题",w:1.1,p:"P3/P2",m:"培训+厅管",g:"演唱表现被集中吐槽并形成复读梗",h:"跑调、破音、音准、节奏、难听"},{c:"08-02",n:"主持控场能力差",w:1.1,p:"P3/P2",m:"培训+厅管",g:"主持节奏混乱、接话差、冷场、不会救场",h:"控场差、主持废、冷场、尬聊"},{c:"08-03",n:"不练歌/不还歌/敷衍粉丝",w:1.2,p:"P2",m:"厅管+客服",g:"点歌迟迟不还、作业拖延、态度敷衍",h:"不还歌、摆烂、不练、敷衍"},{c:"08-04",n:"被同期/竞品主播对比拉踩",w:1.1,p:"P3/P2",m:"舆情组+培训",g:"同类型主播能力差异被外部对比",h:"拉踩、同期、比不上、吊打"},{c:"08-05",n:"作品质量差/选歌审美被嘲",w:1.2,p:"P2/P3",m:"内容+培训",g:"短视频、翻唱、活动节目质量被吐槽",h:"作品烂、选歌土、审美差、敷衍"},{c:"08-06",n:"考核放水/混进来质疑",w:1.4,p:"P2/P1",m:"业务+培训",g:"粉丝认为主播不达标仍获得机会",h:"混进来、放水、保送、凭什么"},{c:"08-07",n:"假唱/录音/代播传言",w:1.6,p:"P1/P2",m:"风控+业务",g:"声音、口型、设备、账号异常引发真实性质疑",h:"假唱、录音、代播、不是本人"},{c:"08-08",n:"口音/表达/普通话被嘲",w:1.1,p:"P3/P2",m:"培训+舆情组",g:"语言表达被外部持续嘲讽或歧视化传播",h:"口音、普通话、咬字、土"},{c:"08-09",n:"音质/设备/直播技术问题",w:1.1,p:"P3/P2",m:"技术+厅管",g:"麦克风、声卡、网络、混响导致内容体验下降",h:"炸麦、卡、音质差、声卡、设备"},{c:"08-10",n:"排档稳定性/缺勤/临时鸽档",w:1.2,p:"P2",m:"厅管+人事",g:"频繁迟到、缺勤、临时停播导致粉丝不满",h:"鸽、迟到、缺勤、临时取消、摆烂"},{c:"08-11",n:"个播唱功考核边界咨询",w:1,p:"P3/P2",m:"业务+考核组",g:"用户质疑个播主播唱功是否纳入考核，或对个播/排档的专业标准提出疑问",h:"个播、唱功、考核范围、二考、唱得不好",x:1},{c:"08-12",n:"二考/回炉/复训结果追问",w:1.2,p:"P2",m:"业务+考核组",g:"用户要求对唱功、主持、排档表现不佳主播进行二考、回炉或复训，并追问结果",h:"二考、回炉、复训、重考、处理结果",x:1},{c:"08-13",n:"点歌/学歌/生日祝福履约争议",w:1.45,p:"P2/P1",m:"业务+客服",g:"主播或工作组承诺学歌、点歌、生日祝福、排档演唱等未按约定完成，用户要求退款或补偿",h:"学歌、点歌、生日祝福、没唱、拖延、退款",x:1}],
+    "09":[{c:"09-01",n:"学历/履历/经历造假质疑",w:1.8,p:"P1",m:"公关+业务",g:"过往履历、学历、职业经历被扒与人设不符",h:"学历假、履历假、包装、编故事"},{c:"09-02",n:"旧平台/旧身份/历史账号曝光",w:1.7,p:"P1",m:"舆情组+业务",g:"YY、其他平台、旧账号、历史直播内容被扒",h:"旧身份、老号、前平台、王小五式扒皮"},{c:"09-03",n:"恋爱/婚育/暧昧关系与人设冲突",w:1.9,p:"P1/P0",m:"公关+法务",g:"单身/陪伴人设与现实恋爱婚育信息矛盾",h:"已婚、恋爱、孩子、隐瞒、假单身"},{c:"09-04",n:"现实纠纷/债务/官司曝光",w:1.8,p:"P1/P0",m:"法务+公关",g:"债务、借贷、官司、纠纷、失信等信息被曝光",h:"债务、官司、高利贷、失信、借钱不还"},{c:"09-05",n:"聊天记录证明人设前后矛盾",w:1.7,p:"P1",m:"公关+法务",g:"私信、聊天记录与公开说法冲突",h:"聊天记录、截图、前后不一、撒谎"},{c:"09-06",n:"线下被拍与公开口径冲突",w:1.7,p:"P1",m:"公关+业务",g:"线下同框、亲密互动、行程被曝光",h:"线下被拍、同框、亲密、行程"},{c:"09-07",n:"AI变声/虚拟身份/真实性标识不足",w:1.6,p:"P1/P2",m:"风控+业务",g:"声音、头像、人设可能由AI/变声包装但未说明",h:"变声、AI、合成、不是本人、虚拟"},{c:"09-08",n:"拒不回应/反复改口引发诚信危机",w:1.7,p:"P1",m:"公关+舆情组",g:"主播或公司多次改口、删评、沉默、辟谣无证据",h:"装死、改口、删评、嘴硬、没证据"},{c:"09-09",n:"隐瞒恋爱/婚育/亲密关系后被大姐爆料",w:1.75,p:"P1/P0",m:"业务+公关+法务",g:"主播长期以单身、可恋爱、专属陪伴等人设维护粉丝，后被高消费粉丝或第三方曝光现实恋爱、婚育、同居、亲密关系",h:"单身人设、已婚、女友/男友、骗粉、婚育、同居",x:1},{c:"09-10",n:"多段现实关系并行/情感欺骗指控",w:1.85,p:"P1/P0",m:"业务+公关+法务",g:"多名粉丝或现实关系对象同时曝光相似恋爱承诺、亲密关系、转账往来或时间线冲突",h:"多线恋爱、时间管理、多人同款、海王、骗感情",x:1},{c:"09-11",n:"非我司主播冒充/假认证",w:1.45,p:"P1/P2",m:"法务+舆情组",g:"外部账号使用T.前缀、厅名、头像、简介、粉丝团等方式暗示为我司主播或老师",h:"假冒主播、不是我司、无证书、主页挂听潮阁、假老师",x:1},{c:"09-12",n:"清退后仍挂工地/前缀认证争议",w:1.3,p:"P2/P1",m:"业务+法务",g:"已清退、退会或非公司主播仍在主页、简介、视频中使用工地、前缀、认证表述",h:"已清退、仍挂工地、前缀、创造营、官方认证",x:1},{c:"09-13",n:"小号/马甲/双开账号身份争议",w:1.45,p:"P2/P1",m:"业务+风控",g:"主播被质疑使用小号、马甲、跨平台账号或双开经营，且可能存在收礼、引流、隐瞒身份等问题",h:"小号、马甲、双开、同时开播、送礼功能、灯牌",x:1},{c:"09-14",n:"婚恋/婚育状态与人设冲突",w:1.75,p:"P1/P0",m:"业务+法务+公关",g:"主播被指隐瞒恋爱、已婚已育、出轨、撩骚等现实关系状态，与单身人设或粉丝消费预期冲突",h:"已婚已育、出轨、恋爱、单身人设、撩骚",x:1}],
+    "10":[{c:"10-01",n:"三次照片/身份信息泄露",w:2,p:"P0/P1",m:"法务+舆情组",g:"主播或粉丝现实照片、姓名、住址、学校、手机号被传播",h:"三次、照片、姓名、地址、手机号、人肉"},{c:"10-02",n:"家人/伴侣/素人被牵连",w:1.9,p:"P0/P1",m:"法务+公关",g:"家庭成员、朋友、伴侣、素人被攻击或曝光",h:"家人、老婆、对象、素人、亲友"},{c:"10-03",n:"私信/聊天记录外泄",w:1.8,p:"P1",m:"法务+舆情组",g:"私密聊天被剪裁、拼接、曝光",h:"私信、聊天记录、截图、录屏、挂出来"},{c:"10-04",n:"粉丝互挂/粉头挂人",w:1.7,p:"P1",m:"厅管+舆情组",g:"粉群内部互相曝光账号、照片、消费记录",h:"互挂、粉头、挂人、开盒、拉清单"},{c:"10-05",n:"主播或员工网暴素人",w:2,p:"P0",m:"公关+法务+人事",g:"主播、厅管、员工公开攻击普通用户或引导粉丝围攻",h:"网暴素人、冲她、挂她、带粉去骂"},{c:"10-06",n:"造谣诽谤与证据链争议",w:1.6,p:"P1/P2",m:"法务+舆情组",g:"未经证实的爆料、指控、传言扩散",h:"造谣、辟谣、证据呢、律师函"},{c:"10-07",n:"恶意剪辑/断章取义造成名誉损害",w:1.5,p:"P2/P1",m:"舆情组+法务",g:"截取片段脱离语境，形成攻击性传播",h:"断章取义、恶剪、拼接、黑视频"},{c:"10-08",n:"法务/律师函使用引发反噬",w:1.6,p:"P1/P2",m:"法务+公关",g:"律师函被认为威胁粉丝、掩盖事实或选择性执法",h:"律师函、告粉丝、吓唬人、法务装样子"},{c:"10-09",n:"亲密关系证据外泄导致隐私二次伤害",w:1.95,p:"P0/P1",m:"法务+公关+舆情组",g:"怀孕、流产、亲密关系、病历、聊天记录、身份证明、住址、酒店记录等隐私材料被公开传播",h:"病历、检查单、酒店记录、身份证、聊天截图、住址",x:1},{c:"10-10",n:"当事人大姐/粉丝被反向网暴",w:1.9,p:"P0/P1",m:"公关+法务+业务",g:"事件曝光后，粉丝、主播支持者、厅内人员对爆料大姐进行辱骂、人肉、造黄谣、攻击私生活",h:"网暴大姐、挂素人、造黄谣、人肉、开盒",x:1},{c:"10-11",n:"线下偷拍/发送素人照片",w:1.8,p:"P1/P0",m:"法务+业务",g:"主播、粉丝或管理在线下偷拍素人、同事、粉丝并传播到群聊或私域",h:"偷拍、照片、发群、线下、女生、素人",x:1},{c:"10-12",n:"监视消费流水/CPF资金动向",w:1.55,p:"P1/P2",m:"业务+舆情组",g:"主播、粉丝、管理或大姐被指监视、统计、传播他人消费流水、CPF资金或榜单行为",h:"监视、流水、CPF、钱、消费记录、盯榜",x:1}],
+    "11":[{c:"11-01",n:"立绘/头像/版头抄袭",w:1.4,p:"P2/P1",m:"设计+法务",g:"视觉素材与他人作品高度相似",h:"抄袭、融梗、描图、撞图、立绘"},{c:"11-02",n:"音频/作品盗用或盗播",w:1.5,p:"P1/P2",m:"内容+法务",g:"未经授权使用他人音频、翻唱、作品片段",h:"盗用、盗播、搬运、未经授权"},{c:"11-03",n:"未授权使用粉丝二创素材",w:1.4,p:"P2/P1",m:"内容+商务",g:"官方或主播使用粉丝图文、视频、剪辑未授权",h:"拿图不问、盗粉丝图、二创被商用"},{c:"11-04",n:"AI喂图/AI立绘/生成内容争议",w:1.6,p:"P1/P2",m:"设计+法务",g:"疑似使用画师作品训练或生成AI视觉内容",h:"AI喂图、AI立绘、生成、画师维权"},{c:"11-05",n:"商用侵权/印刷接单/周边授权不清",w:1.7,p:"P1/P0",m:"商务+法务",g:"周边或合作物料使用未授权IP/字体/图片",h:"商用侵权、授权、字体、印刷、接单"},{c:"11-06",n:"标题/封面/账号名模仿头部",w:1.4,p:"P2/P1",m:"业务+风控",g:"用相似名称、包装或人设蹭头部流量",h:"模仿、山寨、蹭、撞名、假号"},{c:"11-07",n:"盗版周边与正版对比争议",w:1.5,p:"P1/P2",m:"商务+法务",g:"盗版、同款、代工、真假对比引发粉丝不满",h:"盗版、正版、同款、假货、代工"},{c:"11-08",n:"AI声音/合成声音未标识",w:1.7,p:"P1",m:"风控+法务",g:"AI合成声音参与互动、翻唱或陪伴但未说明",h:"AI声音、合成声、假人、不是本人"},{c:"11-09",n:"前缀/厅名/主播名蹭流",w:1.35,p:"P2/P1",m:"法务+舆情组",g:"外部账号、商品、视频、厅名使用听潮阁、主播名、T.前缀等进行引流或误导",h:"听潮阁、T.前缀、主播名、蹭流、同名",x:1},{c:"11-10",n:"非官方周边开团/团购授权争议",w:1.45,p:"P1/P2",m:"法务+市场",g:"外部团购、店铺或个人以主播、厅系、作品名义售卖周边，用户担心影响官方权益",h:"开团、周边、非官方、团购、盗版、定制",x:1},{c:"11-11",n:"外部账号搬运/转播直播内容",w:1.35,p:"P2/P1",m:"法务+舆情组",g:"外部平台或账号搬运、转播、录播旗下直播间、歌曲、背景音或作品并进行引流",h:"搬运、转播、录播、快手、抖音、直播内容",x:1},{c:"11-12",n:"原创稿图/AI融图二创规范争议",w:1.55,p:"P1/P2",m:"法务+内容团队",g:"原创稿图、立绘、粉丝二创或AI融图被二次使用、商用、未署名或未说明规则",h:"原创稿图、AI融图、二创、版权费、拉黑、道歉",x:1},{c:"11-13",n:"音乐平台翻唱/版本未下架争议",w:1.45,p:"P1/P2",m:"音乐版权+法务",g:"用户反馈歌曲、翻唱、争议版本在网易云、QQ音乐、酷狗等平台仍可播放或非官方上传",h:"网易云、QQ音乐、酷狗、翻唱、未下架、官方上传",x:1}],
+    "12":[{c:"12-01",n:"招募承诺与实际待遇不符",w:1.6,p:"P1/P2",m:"人事/经纪+法务",g:"主播称入会前承诺资源、保底、培训，入会后未兑现",h:"招募骗局、承诺资源、保底不发、画饼"},{c:"12-02",n:"分成/保底/流水结算争议",w:1.8,p:"P1/P0",m:"财务+法务",g:"收入结算、分成比例、保底发放、流水统计不一致",h:"分成、保底、流水、结算、扣钱"},{c:"12-03",n:"退会/违约金/仲裁纠纷",w:1.9,p:"P1/P0",m:"法务+经纪",g:"主播退会困难、违约金过高、仲裁被指偏袒",h:"退会、违约金、仲裁、卡人、不放人"},{c:"12-04",n:"排班压榨/休息不足/管理方式争议",w:1.6,p:"P1/P2",m:"人事+业务",g:"主播控诉强制排档、请假难、身心压力大",h:"压榨、强制排档、请假、累、病了还播"},{c:"12-05",n:"厅管偏袒/管理态度差",w:1.5,p:"P1/P2",m:"业务负责人",g:"厅管被指偏袒某主播、处理投诉粗暴或不作为",h:"厅管偏心、态度差、护短、压热度"},{c:"12-06",n:"处罚流程不透明/清退争议",w:1.7,p:"P1",m:"法务+业务+公关",g:"停排、封禁、清退、罚款没有清晰依据",h:"停播、停排、清退、罚款、不给说法"},{c:"12-07",n:"主播准入/背调/复播评估缺口",w:1.8,p:"P1/P0",m:"风控+业务",g:"争议主播入驻、复播、转厅前风险未识别",h:"怎么还能播、背调、复播、包庇"},{c:"12-08",n:"培训机制失效/重复违规",w:1.5,p:"P2/P1",m:"培训+业务",g:"同类话术或行为在多个主播身上反复出现",h:"又来了、培训没用、屡教不改、复制粘贴"},{c:"12-09",n:"内部信息泄露/行程提前暴露",w:1.7,p:"P1",m:"行政+信息化+公关",g:"活动名单、行程、处罚、未公开方案被外泄",h:"泄密、提前知道、行程、名单流出"},{c:"12-10",n:"跨部门响应慢/责任链断点",w:1.8,p:"P1",m:"总裁办/业务负责人",g:"舆情、法务、业务、客服互相等待，错失处理窗口",h:"没人管、踢皮球、等通知、反应慢"},{c:"12-11",n:"主播私联恋爱事件公司前置管理失效",w:1.85,p:"P1/P0",m:"业务负责人+风控+公关",g:"公司或厅管已知主播私联、高消费粉丝恋爱、线下见面等苗头，但未及时阻断，导致后续爆发",h:"早知道、提醒过、厅管不管、公司包庇、压事",x:1},{c:"12-12",n:"厅管/经纪人介入私下和解不当",w:1.9,p:"P0/P1",m:"法务+公关+业务管理",g:"厅管、经纪人、工作人员参与协调恋爱/怀孕/退款/删帖等纠纷，措辞或方式不当导致二次爆雷",h:"厅管劝删、威胁、私了、别发、公司压你",x:1},{c:"12-13",n:"小秘书/客服响应慢与补证链路断点",w:1.25,p:"P2/P1",m:"客服+舆情组",g:"用户投诉小秘书、客服、大秘书长期未回复、重复要求补证或反馈链路不清",h:"不回复、补证、发录屏、没人处理、等很久",x:1},{c:"12-14",n:"处罚执行周期过长/恢复标准不明",w:1.35,p:"P2/P1",m:"业务+公关",g:"主播被停排、下前缀、下头像、清退等处罚后，用户追问执行时长、恢复条件或结果说明",h:"停排多久、处罚快俩月、何时恢复、结果呢",x:1},{c:"12-15",n:"退会/清退/转会后账号归属咨询",w:1.25,p:"P2/P1",m:"业务+法务",g:"用户围绕主播合同到期、清退、转会、账号归属、是否同意转会等进行咨询或举报",h:"合同到期、转会、清退、账号归属、判回",x:1},{c:"12-16",n:"新人准入/考核号/应聘流程咨询",w:0.75,p:"P3",m:"业务+客服",g:"用户咨询加入公会、应聘、考核号、个播考核入口、是否可报名等流程性问题",h:"应聘、考核号、加入公会、个播考核、报名",x:1},{c:"12-17",n:"非规定时段开播/排档纪律合规",w:1.2,p:"P2",m:"业务+厅管",g:"用户咨询或投诉主播在全公司不播、禁娱、非规定时段、非排档时间仍开播的合规性",h:"禁娱、非规定时间、新生营开播、全公司不播",x:1}],
+    "13":[{c:"13-01",n:"营销号/黑粉集中发帖",w:1.5,p:"P1/P2",m:"舆情组",g:"短时间内多账号发布相似负面内容",h:"营销号、黑粉、批量发帖、带节奏"},{c:"13-02",n:"豆瓣/小红书组织化造谣",w:1.5,p:"P1/P2",m:"舆情组+法务",g:"隐语、黑话、小作文扩散，证据弱但传播强",h:"小作文、造谣、隐语、豆瓣、避坑"},{c:"13-03",n:"黑称/侮辱性梗传播",w:1.3,p:"P2",m:"舆情组",g:"主播、厅、公司被固定黑称标签化",h:"黑称、外号、梗、辱骂、绰号"},{c:"13-04",n:"对家粉跨平台引战",w:1.5,p:"P1/P2",m:"舆情组+业务",g:"竞品厅/主播粉丝把争议带到多个平台",h:"对家粉、跨平台、拉踩、开团"},{c:"13-05",n:"恶意剪辑/断章取义攻击",w:1.4,p:"P2/P1",m:"舆情组+法务",g:"负面切片、拼接字幕、剪掉上下文",h:"恶剪、断章取义、拼接、黑视频"},{c:"13-06",n:"组织投诉/引导举报",w:1.6,p:"P1",m:"客服+公关",g:"号召粉丝向平台、公司、商务方集中举报",h:"举报、投诉、冲大秘、冲平台、冲合作方"},{c:"13-07",n:"阴谋论式爆料/小作文",w:1.5,p:"P1/P2",m:"舆情组+公关",g:"把多个无关事件串成公司黑幕或派系斗争",h:"小作文、阴谋论、瓜、内幕、派系"},{c:"13-08",n:"历史黑料复读/周期性复燃",w:1.6,p:"P1",m:"舆情组+公关",g:"旧事件在新节点被反复提起",h:"翻旧账、复读、又来了、历史问题"},{c:"13-09",n:"话题标签引流式引战",w:1.5,p:"P1/P2",m:"舆情组",g:"固定话题、词条、标签带入路人流量",h:"话题、tag、热搜、广场、引流"},{c:"13-10",n:"外部主播/账号公开攻击品牌",w:1.7,p:"P1",m:"公关+法务",g:"外部主播、账号或前成员公开辱骂、爆料、带节奏",h:"外部主播、前成员、公开骂、爆料"},{c:"13-11",n:"豆瓣组织化举报/挂铁回流票叙事",w:1.65,p:"P1",m:"舆情组+公关",g:"豆瓣、小组、外部社群组织集中举报主播、公会、直播间，并围绕挂铁、回流票、机房等形成叙事",h:"豆瓣、db、集中举报、挂铁、回流票、造谣",x:1},{c:"13-12",n:"恶意视频/大字报/外链舆情核验",w:1.35,p:"P2/P1",m:"舆情组+法务",g:"用户提供作品链接、图片、录屏或外部视频，询问是否属于恶意攻击、网暴、造谣或需要处理",h:"恶意视频、大字报、链接、挂人、评论区",x:1}],
+    "14":[{c:"14-01",n:"上升公司纵容/包庇/价值观",w:1.9,p:"P0/P1",m:"公关+总裁办",g:"外部不再讨论单个主播，而讨论公司是否纵容",h:"包庇、纵容、价值观、公司不管"},{c:"14-02",n:"官方回应翻车/措辞不当",w:1.8,p:"P1/P0",m:"公关+法务",g:"公告语气、事实、处罚、道歉被认为不充分",h:"公告翻车、避重就轻、洗白、道歉没诚意"},{c:"14-03",n:"处理慢/装死导致二次发酵",w:1.8,p:"P1",m:"舆情组+公关",g:"回应窗口错失，外部自行定性",h:"装死、拖、冷处理、不回应"},{c:"14-04",n:"历史事件被串联成系统性问题",w:1.7,p:"P1",m:"公关+舆情组",g:"多个旧事件被汇总，形成公司长期问题叙事",h:"合集、历史、一直这样、惯犯"},{c:"14-05",n:"媒体报道/外部KOL放大",w:2,p:"P0",m:"公关+法务",g:"负面进入媒体、KOL、行业号视野",h:"媒体报道、行业号、KOL、热搜"},{c:"14-06",n:"品牌合作/商务方观望",w:1.9,p:"P0/P1",m:"商务+公关",g:"合作方暂停、询问、要求说明或撤资源",h:"合作方、商务、撤、观望、品牌风险"},{c:"14-07",n:"平台处罚/封禁/整改要求",w:2,p:"P0",m:"业务+风控+公关",g:"主播、厅或公会被平台处罚、限流、封禁或要求整改",h:"封禁、限流、处罚、整改、平台说法"},{c:"14-08",n:"用户信任下降/流失讨论",w:1.7,p:"P1/P2",m:"公关+业务",g:"粉丝或路人讨论脱粉、退坑、避雷、别来",h:"退坑、避雷、不信了、流失、别入坑"},{c:"14-09",n:"官方投诉通道被质疑无效",w:1.7,p:"P1",m:"客服+舆情组",g:"大秘书/客服被指不处理、模板化、偏袒",h:"大秘没用、投诉无门、模板回复"},{c:"14-10",n:"平台/监管问询准备不足",w:1.9,p:"P0/P1",m:"总裁办+法务+公关",g:"事件可能被平台、监管要求说明但材料不完整",h:"平台问、整改报告、材料、复盘"},{c:"14-11",n:"亲密关系事件被上升为公司纵容生态",w:1.95,p:"P0/P1",m:"公关+总裁办+业务+平台沟通",g:"单个主播恋爱、睡粉、怀孕流产纠纷被外界概括为公会生态问题、语音厅行业乱象或平台治理问题",h:"听潮阁纵容、语音厅乱象、平台不管、包庇主播",x:1}],
+    "15":[{c:"15-01",n:"涉诈/返利骗局/资金盘",w:2,p:"P0",m:"法务+风控+公关",g:"用户资金损失、返利骗局、诱导转账、资金盘",h:"诈骗、返利、资金盘、报警、被骗"},{c:"15-02",n:"涉赌/博彩/高利贷/贷款引流",w:2,p:"P0",m:"法务+风控",g:"直播间或私域出现赌博、贷款、高利贷等内容",h:"赌博、网赌、贷款、高利贷、刷流水"},{c:"15-03",n:"色情交易/低俗导流",w:2,p:"P0",m:"风控+法务",g:"擦边内容进一步导向站外色情交易或不雅服务",h:"约、陪睡、私密、裸聊、色情"},{c:"15-04",n:"暴力威胁/线下冲突",w:2,p:"P0",m:"安全+法务+公关",g:"主播、粉丝或外部人员出现威胁、约架、线下堵人",h:"威胁、约架、堵人、弄死、线下找你"},{c:"15-05",n:"自残/自杀/极端情绪事件",w:2,p:"P0",m:"安全+客服+业务",g:"用户或主播以自伤、自杀威胁引发恐慌",h:"自杀、自残、活不下去、跳楼"},{c:"15-06",n:"政治/民族/宗教/公共事件红线",w:2,p:"P0",m:"公关+法务+风控",g:"涉及政治、民族宗教、灾害事故等敏感不当表达",h:"政治、民族、宗教、国难、辱国"},{c:"15-07",n:"警方/监管/法院/仲裁介入",w:2,p:"P0",m:"法务+总裁办+公关",g:"出现警方通报、监管问询、法院/仲裁节点",h:"警方、监管、法院、仲裁、传唤"},{c:"15-08",n:"平台专项治理命中",w:2,p:"P0",m:"风控+业务+公关",g:"命中平台专项治理、健康分扣分、无限期回收直播权限",h:"专项治理、扣分、回收权限、整改"},{c:"15-09",n:"亲密关系事件涉及违法违规指控",w:2,p:"P0",m:"法务+公关+总裁办+平台沟通",g:"亲密关系、怀孕流产、线下接触等事件中，出现强迫、威胁、未成年、敲诈、偷拍视频、非法传播隐私等严重指控",h:"报警、强迫、威胁、偷拍视频、未成年、开盒、敲诈",x:1},{c:"15-10",n:"游戏开挂/代打黑产关联",w:1.55,p:"P1/P2",m:"风控+法务+业务",g:"用户咨询或举报旗下/疑似旗下电竞、打手、游戏账号存在开挂、代打、黑产等问题",h:"开挂、代打、打手、电竞、外挂、黑号",x:1}],
+    "16":[{c:"16-01",n:"证据不足/仅传言",w:0.9,p:"P3",m:"舆情组",g:"只有匿名爆料或二手转述，缺少截图/录屏/订单",h:"听说、据说、瓜、无锤"},{c:"16-02",n:"主体不明/无法定位",w:0.9,p:"P3",m:"舆情组",g:"无法明确主播、厅、时间、平台或事件链路",h:"谁、哪个厅、不知道、匿名"},{c:"16-03",n:"重复线索/旧事件尾部",w:0.8,p:"P3/P2",m:"舆情组",g:"已入库事件的重复讨论或尾部复读",h:"又提、复读、旧事、重复"},{c:"16-04",n:"非舆情/普通业务反馈",w:0.8,p:"P3",m:"业务",g:"单点吐槽、建议、无传播无攻击性",h:"建议、体验、普通反馈"},{c:"16-05",n:"复合多因需人工定主因",w:1.2,p:"P2/P1",m:"舆情组+法务",g:"同时命中情感、导流、未成年、公司回应等多类",h:"多线并发、复杂、主因不清"},{c:"16-06",n:"感谢/收到/撤回后无新增诉求",w:0.5,p:"P3",m:"系统识别",g:"最后一轮仅为感谢、收到、表情、撤回或无意义内容，不构成新的有效问题",h:"谢谢、收到、好的、撤回、表情",x:1}],
+    "17":[{c:"17-01",n:"是否我司主播/账号/厅系核验",w:0.75,p:"P3/P2",m:"客服+业务",g:"用户询问某主播、账号、厅、团播、公会、电竞号是否属于公司旗下或是否通过考核",h:"是否我司、是不是听潮阁、老师真假、账号归属、厅系归属",x:1},{c:"17-02",n:"清退/停排/前缀/认证状态咨询",w:0.8,p:"P3/P2",m:"客服+业务",g:"用户询问某主播是否已清退、停排、下前缀、下头像、是否仍是公司成员",h:"清退、停排、下前缀、下头像、认证、还在吗",x:1},{c:"17-03",n:"应聘/考核/入会入口咨询",w:0.6,p:"P3",m:"客服+业务",g:"用户咨询加入公会、应聘、考核入口、个播/厅播报名方式等",h:"应聘、加入、考核号、怎么报名、个播在哪里考核",x:1},{c:"17-04",n:"活动中奖/奖品/发货查询",w:0.8,p:"P3/P2",m:"客服+活动运营",g:"用户询问活动中奖、签名、伴手礼、发货进度、领取方式等基础信息",h:"中奖、发货、签名、伴手礼、补领、找谁问",x:1},{c:"17-05",n:"版权/直播演唱/二创规则咨询",w:0.85,p:"P3/P2",m:"法务+版权+客服",g:"用户咨询歌曲版权调整、直播演唱规定、二创剪辑是否允许等规则口径",h:"版权、二创、能不能剪、无版权、直播演唱规定",x:1},{c:"17-06",n:"商务/活动露出/主持身份咨询",w:0.8,p:"P3/P2",m:"市场+客服",g:"用户咨询商务合作、活动主持、活动露出人员身份、是否代言等",h:"商务、代言、主持、活动出现、为什么在现场",x:1},{c:"17-07",n:"处罚结果/道歉时间/处理进度追问",w:1.05,p:"P2/P1",m:"舆情组+业务",g:"用户围绕已投诉事项继续追问处罚结果、道歉时间、处理进展、是否公示",h:"什么时候道歉、处理结果、处罚呢、进度、拖延",x:1},{c:"17-08",n:"发录屏/补充情况/回关等流程互动",w:0.65,p:"P3",m:"客服+舆情组",g:"用户要求回关、发录屏、说明具体情况，或处于补证沟通流程中但尚未形成独立新问题",h:"回关、发录屏、说具体情况、补证、怎么发",x:1},{c:"17-09",n:"排档/个播/开播规则咨询",w:0.85,p:"P3/P2",m:"业务+客服",g:"用户询问排档、个播、非规定时段开播、游戏时长、厅播规则等",h:"排档、个播、开播、游戏时长、非规定时间",x:1},{c:"17-10",n:"流水/收入/公开信息合规咨询",w:0.9,p:"P3/P2",m:"业务+法务",g:"用户询问主播或公司是否可以公开流水、收入、榜单等数据",h:"晒流水、收入、公开、榜单数据",x:1},{c:"17-11",n:"电竞/游戏/外挂归属咨询",w:1,p:"P2/P1",m:"业务+风控",g:"用户询问电竞团队、打手、游戏账号是否与公司相关，并反馈开挂、代打等问题",h:"电竞、tc电竞、打手、开挂、游戏账号",x:1},{c:"17-12",n:"合同到期/转会/账号归属咨询",w:1,p:"P2/P1",m:"业务+法务",g:"用户询问主播合同到期、转会、账号归属、公司是否同意转会等",h:"合同到期、转会、账号归属、判回、不同意转会",x:1}],
+};
+
+// 25 起案例完整数据（与 V4 表 sheet 01 对齐）
+const CASES = [
+  {id:'D01', tier:'D',  cls:'t-d',  cat:'08', scn:'08-01', title:'低位主播唱功跑调 · 豆瓣零散吐槽',         S:0.6,  C:1.1, T:1, K:1.0, D:1.0, e:66,   sig:{db:80}},
+  {id:'D02', tier:'D',  cls:'t-d',  cat:'05', scn:'05-05', title:'连麦冷场 · 豆瓣小范围吐槽',               S:1.0,  C:1.0, T:1, K:1.0, D:1.0, e:100,  sig:{db:180}},
+  {id:'D03', tier:'D',  cls:'t-d',  cat:'07', scn:'07-04', title:'物料审美 · 评论区小范围吐槽',             S:1.15, C:1.2, T:0.6,K:1.0, D:1.0, e:83,   sig:{sc:90}},
+  {id:'D04', tier:'D',  cls:'t-d',  cat:'16', scn:'16-04', title:'普通业务咨询 · 误归投诉线索',             S:0.95, C:0.8, T:0.6,K:1.0, D:1.0, e:46,   sig:{xs:4}},
+  {id:'D05', tier:'D',  cls:'t-d',  cat:'08', scn:'08-10', title:'排档临时调整 · 内部预警 1 次',             S:0.9,  C:1.2, T:1, K:0.85,D:1.0, e:92,   sig:{f:1}},
+
+  {id:'C01', tier:'C',  cls:'t-c',  cat:'02', scn:'02-03', title:'阴阳粉丝 · 投诉集中未外溢',               S:0.95, C:1.5, T:2, K:1.2, D:1.0, e:342,  sig:{xs:40}},
+  {id:'C02', tier:'C',  cls:'t-c',  cat:'06', scn:'06-02', title:'活动规则临时调整 · 豆瓣 + 投诉',           S:1.35, C:1.7, T:2, K:1.0, D:1.25,e:574,  sig:{db:500,xs:5}},
+  {id:'C03', tier:'C',  cls:'t-c',  cat:'07', scn:'07-06', title:'周边权益不清 · 豆瓣 + 社媒讨论',           S:1.45, C:1.4, T:2, K:1.0, D:1.0, e:406,  sig:{db:600,sp:4,sc:100}},
+  {id:'C04', tier:'C',  cls:'t-c',  cat:'11', scn:'11-01', title:'立绘相似 · 社媒质疑抄袭',                 S:1.15, C:1.4, T:2, K:1.2, D:1.25,e:483,  sig:{sp:10,sc:200}},
+  {id:'C05', tier:'C',  cls:'t-c',  cat:'13', scn:'13-03', title:'黑称梗搬运 · 预警 + 豆瓣升温',             S:1.25, C:1.3, T:2, K:0.85,D:1.25,e:345,  sig:{f:1,db:400}},
+
+  {id:'B01', tier:'B-', cls:'t-bm', cat:'08', scn:'08-07', title:'代播 / 录音传言 · 社媒单源放大',           S:1.15, C:1.6, T:2, K:1.2, D:1.6, e:707,  sig:{sp:8,sc:300}},
+  {id:'B02', tier:'B-', cls:'t-bm', cat:'01', scn:'01-02', title:'暧昧票争议 · 豆瓣 + 投诉共振',             S:1.35, C:1.7, T:2, K:1.2, D:1.6, e:881,  sig:{db:800,xs:10}},
+  {id:'B03', tier:'B-', cls:'t-bm', cat:'06', scn:'06-07', title:'处罚尺度不一 · 豆瓣 + 投诉对账',           S:1.35, C:1.8, T:2, K:1.2, D:1.6, e:933,  sig:{db:1000,xs:20}},
+  {id:'B04', tier:'B+', cls:'t-bp', cat:'07', scn:'07-09', title:'线下应援点位 · 跨平台发酵',               S:1.7,  C:1.8, T:4, K:1.2, D:1.6, e:2350, sig:{f:2,db:3000,sp:50,sc:600}},
+  {id:'B05', tier:'B+', cls:'t-bp', cat:'04', scn:'04-01', title:'违规拉群导流 · 豆瓣 + 大小秘',             S:1.6,  C:1.7, T:4, K:1.2, D:1.6, e:2089, sig:{f:2,db:4000,xs:120}},
+
+  {id:'A01', tier:'A-', cls:'t-am', cat:'03', scn:'03-01', title:'未成年打赏家长退款 · 外溢社媒',           S:1.55, C:2.0, T:4, K:1.4, D:1.6, e:2778, rl:2500, sig:{xs:200,sp:80,sc:200}},
+  {id:'A02', tier:'A-', cls:'t-am', cat:'14', scn:'14-02', title:'官方回应翻车 · 豆瓣 + 社媒',               S:1.45, C:1.8, T:4, K:1.2, D:2.2, e:3000, rl:3000, sig:{db:4000,sp:60,sc:400}},
+  {id:'A03', tier:'A-', cls:'t-am', cat:'10', scn:'10-05', title:'主播网暴素人 · 预警 + 大小秘 + 社媒',     S:1.75, C:2.0, T:4, K:1.2, D:2.2, e:3696, rl:2500, sig:{f:3,xs:120,sp:100,sc:300}},
+  {id:'A04', tier:'A',  cls:'t-a',  cat:'12', scn:'12-03', title:'退会违约金 · 四信源同步升温',             S:2.0,  C:1.9, T:4, K:1.2, D:2.2, e:4013, sig:{f:3,db:4000,xs:80,sp:50,sc:200}},
+  {id:'A05', tier:'A+', cls:'t-ap', cat:'09', scn:'09-03', title:'恋爱婚育人设争议 · 跨平台讨论',           S:1.85, C:1.9, T:8, K:1.2, D:2.2, e:7424, sig:{db:50000,xs:100,sp:100,sc:500}},
+
+  {id:'S01', tier:'S',  cls:'t-s',  cat:'15', scn:'15-01', title:'涉诈返利资金盘 · 四信源曝光',             S:2.0,  C:2.0, T:8, K:1.4, D:2.2, e:9856, rl:4000, sig:{f:5,db:60000,xs:200,sp:300,sc:1000}},
+  {id:'S02', tier:'S',  cls:'t-s',  cat:'14', scn:'14-07', title:'平台处罚后追问 · 危机响应',               S:2.0,  C:2.0, T:8, K:1.2, D:2.2, e:8448, rl:3000, sig:{f:4,db:50000,xs:120,sp:100,sc:1000}},
+  {id:'S03', tier:'S',  cls:'t-s',  cat:'03', scn:'03-03', title:'未成年私联线下 · 证据链曝光',             S:2.0,  C:2.0, T:8, K:1.4, D:2.2, e:9856, rl:2500, sig:{f:4,db:70000,xs:150,sp:200,sc:1000}},
+  {id:'S04', tier:'S',  cls:'t-s',  cat:'14', scn:'14-05', title:'外部 KOL 放大 · 公司级公共风险',           S:1.85, C:2.0, T:8, K:1.4, D:2.2, e:9117, rl:5000, sig:{db:50000,xs:200,sp:200,sc:1000}},
+  {id:'S05', tier:'S',  cls:'t-s',  cat:'02', scn:'02-08', title:'公共事件敏感表达 · 跨平台扩散',           S:2.0,  C:2.0, T:8, K:1.4, D:2.2, e:9856, rl:8000, sig:{f:8,db:80000,xs:300,sp:300,sc:3000}},
+];
+
+const REDLINES = [
+  {k:'none',          v:0,    lbl:'无'},
+  {k:'minor_clue',    v:700,  lbl:'未成年线索'},
+  {k:'minor_floor',   v:2500, lbl:'未成年实证'},
+  {k:'privacy',       v:2500, lbl:'隐私 / 网暴'},
+  {k:'platform',      v:3000, lbl:'平台处罚'},
+  {k:'response_fail', v:3000, lbl:'回应翻车'},
+  {k:'fraud',         v:4000, lbl:'涉诈违法'},
+  {k:'media',         v:5000, lbl:'媒体 / KOL'},
+  {k:'regulator',     v:8000, lbl:'监管 / 价值观'},
+];
+
+/* ==================================================================
+   25 起案例 · 卡片渲染
+   ================================================================== */
+(function casesRender(){
+  const grid = document.getElementById('casesGrid');
+  if(!grid) return;
+  CASES.forEach((c, i) => {
+    const el = document.createElement('div');
+    el.className = `case-cell ${c.cls}`;
+    el.style.transitionDelay = (i % 5) * 0.04 + 's';
+
+    const sigParts = [];
+    if(c.sig.f)  sigParts.push(`<span class="sig-item"><span class="sn">F预警</span><span class="sv">${c.sig.f}</span></span>`);
+    if(c.sig.db) sigParts.push(`<span class="sig-item"><span class="sn">豆瓣</span><span class="sv">${c.sig.db.toLocaleString()}</span></span>`);
+    if(c.sig.xs) sigParts.push(`<span class="sig-item"><span class="sn">投诉</span><span class="sv">${c.sig.xs}</span></span>`);
+    if(c.sig.sp) sigParts.push(`<span class="sig-item"><span class="sn">发文</span><span class="sv">${c.sig.sp}</span></span>`);
+    if(c.sig.sc) sigParts.push(`<span class="sig-item"><span class="sn">评论</span><span class="sv">${c.sig.sc.toLocaleString()}</span></span>`);
+
+    el.innerHTML = `
+      <div class="case-head">
+        <div class="case-id">${c.id}</div>
+        ${c.rl?`<div class="case-redline">红线 ${c.rl}</div>`:''}
+      </div>
+      <div class="case-tier">${c.tier}</div>
+      <div class="case-scn">${c.scn} · 权重 ${c.C.toFixed(2)}</div>
+      <div class="case-title">${c.title}</div>
+      <div class="case-coefs">
+        <div class="case-coef"><div class="lk">S</div><div class="vk">${c.S.toFixed(2)}</div></div>
+        <div class="case-coef"><div class="lk">C</div><div class="vk">${c.C.toFixed(2)}</div></div>
+        <div class="case-coef"><div class="lk">T</div><div class="vk">${c.T.toFixed(1)}</div></div>
+        <div class="case-coef"><div class="lk">K</div><div class="vk">${c.K.toFixed(2)}</div></div>
+        <div class="case-coef"><div class="lk">D</div><div class="vk">${c.D.toFixed(2)}</div></div>
+      </div>
+      <div class="case-sigs">${sigParts.join('') || '<span class="sig-empty">(无外部声量 · 内部预警驱动)</span>'}</div>
+      <div class="case-e">
+        <span>E_peak</span>
+        <span class="val">${c.e.toLocaleString()}</span>
+      </div>
+    `;
+    grid.appendChild(el);
+  });
+})();
+
+/* ==================================================================
+   3D 场景球 · 204 个二级场景
+   ================================================================== */
+(function sphereViz(){
+  const canvas = document.getElementById('sphereCanvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const detail = document.getElementById('sphereDetail');
+  const filterBox = document.getElementById('sphereFilter');
+  const searchInput = document.getElementById('sphereSearch');
+  const searchResults = document.getElementById('sphereSearchResults');
+
+  const ALL_SCENES = [];
+  CAT_OPTIONS.forEach(cat => {
+    (SCENE_DB[cat.code] || []).forEach(s => {
+      ALL_SCENES.push({...s, catCode: cat.code, catName: cat.name});
+    });
+  });
+
+  function fibSphere(n){
+    const pts = [];
+    const phi = Math.PI * (3 - Math.sqrt(5));
+    for(let i = 0; i < n; i++){
+      const y = 1 - (i / Math.max(n - 1, 1)) * 2;
+      const r = Math.sqrt(Math.max(0, 1 - y * y));
+      const t = phi * i;
+      pts.push({x: Math.cos(t) * r, y, z: Math.sin(t) * r});
+    }
+    return pts;
+  }
+
+  const points = fibSphere(ALL_SCENES.length);
+  let rotY = 0, rotX = 0.28;
+  let userRotY = 0, userRotX = 0;
+  let radius = 220, cx, cy;
+  let hoverIdx = -1, activeIdx = 0;
+  let activeFilter = null;
+  let dragging = false, lastX = 0, lastY = 0;
+  let autoRotate = true, autoTimer = null;
+  let searchPick = -1;
+
+  const SEARCH_INDEX = ALL_SCENES.map((s, i) => ({
+    i, s,
+    text: [s.c, s.n, s.g, s.h, s.p, s.m, s.catName, s.catCode].filter(Boolean).join(' ').toLowerCase()
+  }));
+
+  function focusOnPoint(i){
+    const p = points[i];
+    userRotY = Math.atan2(p.x, p.z) - rotY;
+    userRotX = -Math.asin(Math.max(-1, Math.min(1, p.y))) - rotX;
+    userRotX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, userRotX));
+  }
+
+  function syncFilterChips(catCode){
+    const allChip = filterBox.querySelector('.sphere-chip.all');
+    filterBox.querySelectorAll('.sphere-chip').forEach(c => c.classList.remove('active'));
+    if(!catCode){
+      activeFilter = null;
+      if(allChip) allChip.classList.add('active');
+    } else {
+      activeFilter = catCode;
+      const chip = [...filterBox.querySelectorAll('.sphere-chip')].find(c => c.textContent === catCode);
+      if(chip) chip.classList.add('active');
+    }
+  }
+
+  function selectScene(idx, opts){
+    const {syncFilter = true, clearSearch = false} = opts || {};
+    if(idx < 0 || idx >= ALL_SCENES.length) return;
+    activeIdx = idx;
+    const scene = ALL_SCENES[idx];
+    focusOnPoint(idx);
+    updateDetail(scene);
+    pauseAuto();
+    if(syncFilter) syncFilterChips(scene.catCode);
+    if(clearSearch && searchInput){
+      searchInput.value = '';
+      hideSearchResults();
+    }
+  }
+
+  function searchScenes(q){
+    const tokens = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if(!tokens.length) return [];
+    return SEARCH_INDEX.filter(e => tokens.every(t => e.text.includes(t))).slice(0, 24);
+  }
+
+  function hideSearchResults(){
+    if(!searchResults) return;
+    searchResults.classList.remove('show');
+    searchResults.innerHTML = '';
+    searchPick = -1;
+  }
+
+  function renderSearchResults(list){
+    if(!searchResults) return;
+    if(!list.length){
+      searchResults.innerHTML = '<div class="sphere-search-empty">无匹配场景</div>';
+      searchResults.classList.add('show');
+      searchPick = -1;
+      return;
+    }
+    searchResults.innerHTML = list.map((e, n) => `
+      <div class="sphere-search-item${n === 0 ? ' active' : ''}" data-idx="${e.i}">
+        <span class="sr-code">${e.s.c}</span>${e.s.n}
+        ${e.s.g ? `<span class="sr-def">${e.s.g}</span>` : ''}
+      </div>
+    `).join('');
+    searchResults.classList.add('show');
+    searchPick = 0;
+    searchResults.querySelectorAll('.sphere-search-item').forEach(el => {
+      el.addEventListener('mousedown', ev => {
+        ev.preventDefault();
+        selectScene(+el.dataset.idx, {clearSearch: true, syncFilter: false});
+      });
+    });
+  }
+
+  function resize(){
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * devicePixelRatio;
+    canvas.height = rect.height * devicePixelRatio;
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+    cx = rect.width / 2;
+    cy = rect.height / 2;
+    radius = Math.min(rect.width, rect.height) * 0.40;
+  }
+
+  function catColor(catCode, alpha){
+    const idx = CAT_OPTIONS.findIndex(c => c.code === catCode);
+    if(REDLINE_CATS.includes(catCode)){
+      const rh = idx % 3;
+      return `rgba(255,${90 + rh * 20},${50 + rh * 15},${alpha})`;
+    }
+    const hue = (idx * 37) % 360;
+    return `hsla(${hue}, 25%, 78%, ${alpha})`;
+  }
+
+  function project(p){
+    const rY = rotY + userRotY, rX = rotX + userRotX;
+    const cy_ = Math.cos(rY), sy_ = Math.sin(rY);
+    const cx_ = Math.cos(rX), sx_ = Math.sin(rX);
+    let x = p.x * cy_ - p.z * sy_;
+    let z = p.x * sy_ + p.z * cy_;
+    const y2 = p.y * cx_ - z * sx_;
+    const z2 = p.y * sx_ + z * cx_;
+    return {x: cx + x * radius, y: cy + y2 * radius, z: z2};
+  }
+
+  function draw(){
+    ctx.clearRect(0, 0, canvas.width / devicePixelRatio, canvas.height / devicePixelRatio);
+
+    ctx.strokeStyle = 'rgba(240,240,250,0.06)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius + 10, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(240,240,250,0.04)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius * 0.65, 0, Math.PI * 2);
+    ctx.stroke();
+
+    for(let i = -3; i <= 3; i++){
+      const r = radius * Math.cos(i * Math.PI / 8);
+      const yy = cy + radius * Math.sin(i * Math.PI / 8 + (rotX + userRotX) * 0.3);
+      ctx.strokeStyle = 'rgba(240,240,250,0.025)';
+      ctx.beginPath();
+      ctx.ellipse(cx, yy, r, r * 0.18, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    const projected = points.map((p, i) => ({...project(p), s: ALL_SCENES[i], i}));
+    projected.sort((a, b) => a.z - b.z);
+
+    projected.forEach(p => {
+      const isFiltered = activeFilter && p.s.catCode !== activeFilter;
+      const depth = (p.z + 1) / 2;
+      const size = isFiltered ? 0.8 : (1.2 + depth * 3.4);
+      const alpha = isFiltered ? 0.04 : (0.18 + depth * 0.7);
+
+      ctx.fillStyle = catColor(p.s.catCode, alpha);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
+      ctx.fill();
+
+      if(p.s.x && !isFiltered && depth > 0.35){
+        ctx.strokeStyle = `rgba(92,225,230,${(alpha * 0.55).toFixed(3)})`;
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, size + 2.4, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      if((p.i === hoverIdx || p.i === activeIdx) && !isFiltered){
+        ctx.strokeStyle = p.i === activeIdx ? 'rgba(92,225,230,0.85)' : 'rgba(240,240,250,0.85)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, size + 5, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.strokeStyle = p.i === activeIdx ? 'rgba(92,225,230,0.3)' : 'rgba(240,240,250,0.3)';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, size + 10, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    });
+
+    projected.forEach(p => {
+      if(p.z < 0.05) return;
+      const isFiltered = activeFilter && p.s.catCode !== activeFilter;
+      if(isFiltered) return;
+      const depth = (p.z + 1) / 2;
+      const fontSize = 6 + depth * 4.5;
+      if(fontSize < 7.2) return;
+      const labelAlpha = (depth - 0.4) * 1.2;
+      if(labelAlpha <= 0.02) return;
+      const isActive = (p.i === hoverIdx || p.i === activeIdx);
+      const finalAlpha = isActive ? Math.min(1, labelAlpha + 0.5) : labelAlpha;
+      ctx.font = `${fontSize.toFixed(1)}px JetBrains Mono, monospace`;
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = isActive
+        ? `rgba(92,225,230,${finalAlpha})`
+        : (REDLINE_CATS.includes(p.s.catCode)
+            ? `rgba(255,150,110,${finalAlpha * 0.8})`
+            : `rgba(240,240,250,${finalAlpha * 0.62})`);
+      const dotSize = 1.2 + depth * 3.4;
+      ctx.fillText(p.s.c, p.x + dotSize + 4, p.y);
+    });
+  }
+
+  function tick(){
+    if(autoRotate) rotY += 0.0028;
+    draw();
+    requestAnimationFrame(tick);
+  }
+
+  function pauseAuto(){
+    autoRotate = false;
+    if(autoTimer) clearTimeout(autoTimer);
+    autoTimer = setTimeout(() => autoRotate = true, 4000);
+  }
+
+  canvas.addEventListener('mousedown', e => {
+    dragging = true;
+    autoRotate = false;
+    lastX = e.clientX;
+    lastY = e.clientY;
+  });
+  window.addEventListener('mouseup', () => {
+    if(dragging){ dragging = false; pauseAuto(); }
+  });
+
+  const sphereTip = document.getElementById('sphereTip');
+  function hideTip(){ if(sphereTip) sphereTip.classList.remove('show'); }
+  function showTip(scene, x, y){
+    if(!sphereTip) return;
+    const isRed = REDLINE_CATS.includes(scene.catCode);
+    sphereTip.innerHTML = `<span class="tip-code">${scene.c}${isRed ? ' · 红线' : ''}${scene.x ? ' · 新增' : ''}</span>${scene.n}`;
+    sphereTip.classList.toggle('redline', isRed);
+    sphereTip.style.left = x + 'px';
+    sphereTip.style.top = y + 'px';
+    sphereTip.classList.add('show');
+  }
+
+  canvas.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    if(dragging){
+      userRotY += (e.clientX - lastX) * 0.005;
+      userRotX += (e.clientY - lastY) * 0.005;
+      userRotX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, userRotX));
+      lastX = e.clientX;
+      lastY = e.clientY;
+    }
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    let nearest = -1, minD = 14, nearestProj = null;
+    points.forEach((p, i) => {
+      if(activeFilter && ALL_SCENES[i].catCode !== activeFilter) return;
+      const proj = project(p);
+      if(proj.z < 0) return;
+      const d = Math.hypot(proj.x - mx, proj.y - my);
+      if(d < minD){ minD = d; nearest = i; nearestProj = proj; }
+    });
+    hoverIdx = nearest;
+    canvas.style.cursor = nearest >= 0 ? 'pointer' : (dragging ? 'grabbing' : 'grab');
+    if(nearest >= 0 && nearestProj) showTip(ALL_SCENES[nearest], nearestProj.x, nearestProj.y);
+    else hideTip();
+  });
+  canvas.addEventListener('mouseleave', () => { hoverIdx = -1; hideTip(); });
+  canvas.addEventListener('click', () => {
+    if(hoverIdx >= 0) selectScene(hoverIdx, {syncFilter: false});
+  });
+
+  function updateDetail(s){
+    const isRed = REDLINE_CATS.includes(s.catCode);
+    detail.innerHTML = `
+      <div class="sd-cat ${isRed ? 'redline' : ''}">${s.catCode} · ${s.catName}${isRed ? ' · 红线' : ''}</div>
+      <div class="sd-code">${s.c}${s.x ? '<span class="sd-new">v2026.06 新增</span>' : ''}</div>
+      <div class="sd-name">${s.n}</div>
+      ${s.g ? `<div class="sd-def"><span class="lbl">场景定义</span> ${s.g}</div>` : ''}
+      ${s.h ? `<div class="sd-def"><span class="lbl">表象信号</span> ${s.h}</div>` : ''}
+      <div class="sd-meta">
+        <span>场景权重 C</span>
+        <span class="sd-w ${isRed ? 'redline' : ''}">${s.w.toFixed(2)}<small>×</small></span>
+      </div>
+      <div class="sd-extra">
+        <span><span class="lbl">预警等级</span> ${s.p || '—'}</span>
+        <span><span class="lbl">主责建议</span> ${s.m || '—'}</span>
+      </div>
+      <div class="sd-hint">公式中 C 维度直接取该场景权重 · ${isRed ? '命中此红线类目后将触发兜底强制升级' : '按常规阈值进入分级流转'}</div>
+    `;
+  }
+
+  const allChip = document.createElement('button');
+  allChip.type = 'button';
+  allChip.className = 'sphere-chip all active';
+  allChip.textContent = '全部';
+  allChip.title = '显示全部 204 个场景';
+  allChip.addEventListener('click', () => {
+    syncFilterChips(null);
+  });
+  filterBox.appendChild(allChip);
+
+  CAT_OPTIONS.forEach(cat => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    const isRed = REDLINE_CATS.includes(cat.code);
+    chip.className = 'sphere-chip' + (isRed ? ' redline' : '');
+    chip.textContent = cat.code;
+    chip.title = cat.name;
+    chip.addEventListener('click', () => {
+      if(activeFilter === cat.code) syncFilterChips(null);
+      else syncFilterChips(cat.code);
+    });
+    filterBox.appendChild(chip);
+  });
+
+  if(searchInput){
+    searchInput.addEventListener('input', () => {
+      const q = searchInput.value;
+      if(!q.trim()){ hideSearchResults(); return; }
+      renderSearchResults(searchScenes(q));
+    });
+    searchInput.addEventListener('keydown', e => {
+      const items = searchResults ? [...searchResults.querySelectorAll('.sphere-search-item')] : [];
+      if(e.key === 'ArrowDown' && items.length){
+        e.preventDefault();
+        searchPick = Math.min(searchPick + 1, items.length - 1);
+        items.forEach((el, n) => el.classList.toggle('active', n === searchPick));
+        items[searchPick]?.scrollIntoView({block: 'nearest'});
+      } else if(e.key === 'ArrowUp' && items.length){
+        e.preventDefault();
+        searchPick = Math.max(searchPick - 1, 0);
+        items.forEach((el, n) => el.classList.toggle('active', n === searchPick));
+        items[searchPick]?.scrollIntoView({block: 'nearest'});
+      } else if(e.key === 'Enter'){
+        e.preventDefault();
+        if(searchPick >= 0 && items[searchPick]) selectScene(+items[searchPick].dataset.idx, {clearSearch: true, syncFilter: false});
+        else {
+          const hits = searchScenes(searchInput.value);
+          if(hits.length) selectScene(hits[0].i, {clearSearch: true, syncFilter: false});
+        }
+      } else if(e.key === 'Escape'){
+        hideSearchResults();
+        searchInput.blur();
+      }
+    });
+    searchInput.addEventListener('blur', () => setTimeout(hideSearchResults, 150));
+  }
+
+  resize();
+  window.addEventListener('resize', resize);
+  selectScene(0, {syncFilter: false});
+  tick();
+})();
+
+/* ==================================================================
+   实时演算 (模拟器)
+   ================================================================== */
+(function simulator(){
+  // ---- DOM
+  const $ = id => document.getElementById(id);
+  const sBox = $('simS'), kBox = $('simK'), dBox = $('simD'), rlBox = $('simRl'), catSel = $('simCat'), scnSel = $('simScn');
+  const eVal = $('simE'), tierEl = $('simTier'), tierNameEl = $('simTierName'), tierRange = $('simTierRange');
+  const sValEl = $('simS-val'), kValEl = $('simK-val'), dValEl = $('simD-val'), cValEl = $('simC-val'), rlValEl = $('simRl-val'), h0El = $('simH0'), tEl = $('simT');
+  const bdS=$('bdS'),bdC=$('bdC'),bdT=$('bdT'),bdK=$('bdK'),bdD=$('bdD');
+  const sopText = $('simSop'), badge = $('simBadge'), rlNote = $('simRedline'), sceneInfo = $('simSceneInfo');
+
+  // 状态
+  let sIdx = 1;     // 豆瓣
+  let kIdx = 2;     // 1.0
+  let dIdx = 1;     // 1.0
+  let catCode = '08'; // 默认主播专业能力
+  let scnIdx = 0;
+  let rlIdx = 0;    // 无
+  const sig = {f:0, db:0, xs:0, sp:0, sc:0};
+
+  // 通用按钮组
+  function makeOpts(box, arr, formatter, getIdx, setIdx){
+    arr.forEach((o,i)=>{
+      const b = document.createElement('button');
+      b.className = 'sim-opt' + (i===getIdx() ? ' active' : '');
+      b.innerHTML = `${formatter(o)}<span class="v">${o.v.toFixed(2)}</span>`;
+      b.addEventListener('click',()=>{
+        setIdx(i);
+        box.querySelectorAll('.sim-opt').forEach(x=>x.classList.remove('active'));
+        b.classList.add('active');
+        recompute();
+      });
+      box.appendChild(b);
+    });
+  }
+  makeOpts(sBox, S_OPTIONS, o=>o.lbl, ()=>sIdx, i=>sIdx=i);
+  makeOpts(kBox, K_OPTIONS, o=>o.lbl, ()=>kIdx, i=>kIdx=i);
+  makeOpts(dBox, D_OPTIONS, o=>o.lbl, ()=>dIdx, i=>dIdx=i);
+
+  // 红线兜底（自定义渲染）
+  REDLINES.forEach((o,i)=>{
+    const b = document.createElement('button');
+    b.className = 'sim-opt' + (i===rlIdx ? ' active' : '');
+    b.innerHTML = `${o.lbl}` + (o.v?`<span class="v">${o.v}</span>`:`<span class="v">—</span>`);
+    b.addEventListener('click',()=>{
+      rlIdx = i;
+      rlBox.querySelectorAll('.sim-opt').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      recompute();
+    });
+    rlBox.appendChild(b);
+  });
+
+  // 类目下拉
+  CAT_OPTIONS.forEach((c)=>{
+    const o = document.createElement('option');
+    o.value = c.code;
+    o.textContent = `${c.code} · ${c.name}`;
+    if(c.code===catCode) o.selected = true;
+    catSel.appendChild(o);
+  });
+  catSel.addEventListener('change',()=>{
+    catCode = catSel.value;
+    scnIdx = 0;
+    populateScenes();
+    recompute();
+  });
+
+  // 二级场景下拉（联动类目）
+  function populateScenes(){
+    scnSel.innerHTML = '';
+    const list = SCENE_DB[catCode] || [];
+    list.forEach((s,i)=>{
+      const o = document.createElement('option');
+      o.value = i;
+      o.textContent = `${s.c} · ${s.n} · 权重 ${s.w.toFixed(2)}`;
+      if(i===scnIdx) o.selected = true;
+      scnSel.appendChild(o);
+    });
+  }
+  scnSel.addEventListener('change',()=>{ scnIdx = +scnSel.value; recompute(); });
+  populateScenes();
+
+  // 声量输入
+  document.querySelectorAll('.sim-input input[data-sig]').forEach(inp=>{
+    inp.addEventListener('input',()=>{
+      const k = inp.dataset.sig;
+      sig[k] = Math.max(0, parseFloat(inp.value)||0);
+      recompute();
+    });
+  });
+
+  // 由 H0 推 T
+  function getT(h0){
+    if(h0<=30)    return 0.6;
+    if(h0<=100)   return 1.0;
+    if(h0<=1000)  return 2.0;
+    if(h0<=10000) return 4.0;
+    return 8.0;
+  }
+  function getTier(e){
+    if(e<300)   return {k:'D', name:'常规线索', range:'0 → 300',     cls:'',     time:'日更 / 周汇总', sop:'入线索池 · 不打扰业务 · 舆情组日常归并。E 越过 700 即升 P 并自动拆 R / N / F。'};
+    if(e<700)   return {k:'C', name:'单点事件', range:'300 → 700',   cls:'',     time:'12 — 24 小时观察', sop:'入观察池 · 标注主体 / 议题 / 可信度 / 扩散度 · 12-24h 内复看是否新增信源 · 必要时业务知情。'};
+    if(e<1500)  return {k:'B-',name:'多点风险', range:'700 → 1500',  cls:'',     time:'6 — 12 小时', sop:'正式升 P · 拆 R / N / F · 事实核查 · 业务负责人介入 · 形成处理建议。'};
+    if(e<2500)  return {k:'B+',name:'高位多点', range:'1500 → 2500', cls:'warn', time:'4 — 8 小时', sop:'业务必须反馈处理动作 · 同步总裁办摘要 · 进入高位多点风险流。'};
+    if(e<4000)  return {k:'A-',name:'专项预警', range:'2500 → 4000', cls:'ember',time:'2 — 4 小时', sop:'专项处置 · 准备对外口径 · 法务 / 舆情组按需介入 · 形成专项处置链路。'};
+    if(e<6000)  return {k:'A', name:'重点预警', range:'4000 → 6000', cls:'ember',time:'1 — 2 小时', sop:'总裁办 / 业务高层知情 · 明确收口节点和责任人 · 公告 / 法务预案启动。'};
+    if(e<8000)  return {k:'A+',name:'高危预警', range:'6000 → 8000', cls:'crit', time:'小时级 / 实时', sop:'公告、律师函、平台沟通预案待命 · 高频趋势复盘 · 危机预案包就位。'};
+    return         {k:'S', name:'危机公关', range:'8000 +',         cls:'crit', time:'实时 / 战时',  sop:'公司级响应 · 统一口径 · 平台专项沟通 / 外部法律动作 · 总裁办牵头, 多部门协同。'};
+  }
+
+  function fmt(n){
+    if(n>=1000) return n.toLocaleString('en-US',{maximumFractionDigits:0});
+    return n.toFixed(1).replace(/\.0$/,'');
+  }
+
+  function recompute(){
+    const so = S_OPTIONS[sIdx], ko = K_OPTIONS[kIdx], dop = D_OPTIONS[dIdx], rlo = REDLINES[rlIdx];
+    const scnList = SCENE_DB[catCode] || [];
+    const scn = scnList[scnIdx] || {c:'--',n:'--',w:1.0};
+    const C = scn.w;
+
+    const h0 = sig.f*36 + sig.db*0.18 + sig.xs*3 + sig.sp*7.2 + sig.sc*0.24;
+    const T = getT(h0);
+    let E = 100 * so.v * C * T * ko.v * dop.v;
+    let triggeredFloor = 0;
+    if(rlo.v > 0 && E < rlo.v){ E = rlo.v; triggeredFloor = rlo.v; }
+    const tier = getTier(E);
+
+    // 标签
+    sValEl.textContent = `S = ${so.v.toFixed(2)}`;
+    kValEl.textContent = `K = ${ko.v.toFixed(2)}`;
+    dValEl.textContent = `D = ${dop.v.toFixed(2)}`;
+    cValEl.textContent = `C = ${C.toFixed(2)}`;
+    rlValEl.textContent = rlo.v? `兜底 ≥ ${rlo.v}` : '无';
+    h0El.textContent = `H0 = ${fmt(h0)} 分`;
+    tEl.value = T.toFixed(1);
+
+    bdS.textContent = so.v.toFixed(2);
+    bdC.textContent = C.toFixed(2);
+    bdT.textContent = T.toFixed(1);
+    bdK.textContent = ko.v.toFixed(2);
+    bdD.textContent = dop.v.toFixed(2);
+
+    // 场景说明
+    sceneInfo.innerHTML = `<span class="pill">${scn.c}</span> ${scn.n} · 场景权重 <span class="pill">${C.toFixed(2)}</span> · 预警 <span class="pill">${scn.p||'—'}</span> · 主责 ${scn.m||'—'}${scn.x?' · <span class="pill" style="border-color:rgba(92,225,230,0.5);color:var(--signal);">v2026.06 新增</span>':''}`;
+
+    // E + 等级
+    eVal.textContent = fmt(E);
+    eVal.className = 'e-val ' + (tier.cls||'');
+    tierEl.textContent = tier.k;
+    tierEl.className = 'tier ' + (tier.cls||'');
+    tierNameEl.textContent = tier.name + ' · ' + tier.time;
+    tierRange.textContent = tier.range;
+
+    badge.textContent = `${tier.k} · ${tier.name}`;
+    badge.className = 'badge ' + (tier.cls||'');
+    sopText.textContent = tier.sop;
+    if(triggeredFloor){
+      rlNote.style.display = 'block';
+      rlNote.textContent = `⚠ 红线兜底已触发 · 强制最低分 ${triggeredFloor} 入账`;
+    } else {
+      rlNote.style.display = 'none';
+    }
+  }
+
+  // 初次渲染
+  recompute();
+
+  // ---- 进入演算区时载入示例：A03 主播网暴素人 → 红线兜底（隐私）
+  let firstView = true;
+  const sec = document.getElementById('s-sim');
+  const io = new IntersectionObserver(es=>{
+    es.forEach(e=>{
+      if(e.isIntersecting && firstView){
+        firstView = false;
+        sIdx = 12;     // F + 大小秘 + 社媒 (1.75)
+        kIdx = 3;      // 1.20
+        dIdx = 4;      // 爆发 2.20
+        catCode = '10'; // 隐私 / 网暴 / 挂人
+        rlIdx = 3;     // 隐私
+        sig.f = 3; sig.db = 0; sig.xs = 120; sig.sp = 100; sig.sc = 300;
+        // 重建按钮激活态
+        function activate(box, idx){
+          const btns = box.querySelectorAll('.sim-opt');
+          btns.forEach((b,i)=>b.classList.toggle('active', i===idx));
+        }
+        activate(sBox, sIdx); activate(kBox, kIdx); activate(dBox, dIdx); activate(rlBox, rlIdx);
+        catSel.value = catCode;
+        // 锁定到 10-05 主播或员工网暴素人 (w=2.0)
+        const arr = SCENE_DB['10'] || [];
+        scnIdx = arr.findIndex(s=>s.c==='10-05');
+        if(scnIdx<0) scnIdx = 0;
+        populateScenes();
+        scnSel.value = scnIdx;
+        document.querySelector('input[data-sig="f"]').value = sig.f;
+        document.querySelector('input[data-sig="xs"]').value = sig.xs;
+        document.querySelector('input[data-sig="sp"]').value = sig.sp;
+        document.querySelector('input[data-sig="sc"]').value = sig.sc;
+        recompute();
+      }
+    });
+  },{threshold:0.3});
+  io.observe(sec);
+})();
+</script>
+</body>
+</html>
